@@ -18,7 +18,8 @@ public class CHANGELING : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
-			"Slate"
+			"Slate",
+			"SunPosition"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

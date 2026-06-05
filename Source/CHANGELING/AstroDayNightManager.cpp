@@ -1,0 +1,749 @@
+// AstroDayNightManager.cpp
+//
+// Solar position  — USunPositionFunctionLibrary (Spencer / Iqbal algorithm)
+// Lunar position  — Truncated Meeus Chapter 47 theory
+//                   30 longitude terms + 20 latitude terms → ~0.3° accuracy
+// Coordinates     — Ecliptic → equatorial (true obliquity)
+//                   → horizontal (GMST / LMST / hour angle)
+//                   → atmospheric refraction (Bennett formula)
+
+#include "AstroDayNightManager.h"
+#include "Camera/PlayerCameraManager.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/World.h"
+#include "Materials/MaterialInstanceDynamic.h"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Convenience: degrees ↔ radians
+// ─────────────────────────────────────────────────────────────────────────────
+static constexpr double kD2R = PI / 180.0;
+static constexpr double kR2D = 180.0 / PI;
+
+static double DToR(double d) { return d * kD2R; }
+static double RToD(double r) { return r * kR2D; }
+
+/** Normalise degrees to [0, 360) */
+static double Norm360(double d)
+{
+	d = FMath::Fmod(d, 360.0);
+	return d < 0.0 ? d + 360.0 : d;
+}
+
+//──────────────────────────────────────────────────────────────────────────────
+// Constructor
+//──────────────────────────────────────────────────────────────────────────────
+
+AAstroDayNightManager::AAstroDayNightManager()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+	SetRootComponent(Root);
+
+	SunLight = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("SunLight"));
+	SunLight->SetupAttachment(Root);
+	SunLight->Intensity               = 10.0f;
+	SunLight->bAtmosphereSunLight     = true;
+	SunLight->AtmosphereSunLightIndex = 0;
+	SunLight->SetCastShadows(true);
+	SunLight->bUseTemperature         = true;
+	SunLight->Temperature             = 6500.0f;
+
+	MoonLight = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("MoonLight"));
+	MoonLight->SetupAttachment(Root);
+	MoonLight->Intensity           = 0.05f;
+	MoonLight->bAtmosphereSunLight = false;   // moon doesn't drive sky scattering
+	MoonLight->SetCastShadows(false);
+	MoonLight->LightColor          = FColor(160, 180, 255);
+
+	NightFillLight = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("NightFillLight"));
+	NightFillLight->SetupAttachment(Root);
+	NightFillLight->bAtmosphereSunLight = false;   // pure scene fill, not a sky light
+	NightFillLight->SetCastShadows(false);
+	NightFillLight->SetIntensity(0.0f);
+
+	SkyLight = CreateDefaultSubobject<USkyLightComponent>(TEXT("SkyLight"));
+	SkyLight->SetupAttachment(Root);
+	SkyLight->bRealTimeCapture = true;
+	SkyLight->Intensity        = 1.0f;
+
+	SkyAtmosphere = CreateDefaultSubobject<USkyAtmosphereComponent>(TEXT("SkyAtmosphere"));
+	SkyAtmosphere->SetupAttachment(Root);
+
+	MoonMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MoonMesh"));
+	MoonMesh->SetupAttachment(Root);
+	MoonMesh->SetCastShadow(false);
+	MoonMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	StarDome = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StarDome"));
+	StarDome->SetupAttachment(Root);
+	StarDome->SetCastShadow(false);
+	StarDome->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	StarDome->bReceivesDecals = false;
+	// Backdrop only — keep the emissive stars out of reflections, sky captures and GI
+	// so they don't mirror off scene meshes or leak into Lumen lighting.
+	StarDome->bVisibleInReflectionCaptures   = false;
+	StarDome->bVisibleInRealTimeSkyCaptures   = false;
+	StarDome->bVisibleInRayTracing            = false;
+	StarDome->bAffectDynamicIndirectLighting  = false;
+	StarDome->SetVisibility(false);   // shown only at night
+
+	CurrentDateTime = FDateTime(2024, 6, 21, 12, 0, 0);
+}
+
+//──────────────────────────────────────────────────────────────────────────────
+// Lifecycle
+//──────────────────────────────────────────────────────────────────────────────
+
+void AAstroDayNightManager::BeginPlay()
+{
+	Super::BeginPlay();
+	PrevDay = CurrentDateTime.GetDay();
+	bWasDay = false;
+
+	// Fallback: if the C++ pointer is null (e.g. stale hot-reload), find by name
+	if (!MoonMesh)
+	{
+		MoonMesh = Cast<UStaticMeshComponent>(
+			GetDefaultSubobjectByName(TEXT("MoonMesh")));
+		UE_LOG(LogTemp, Warning, TEXT("AstroDayNightManager: MoonMesh was null — fallback %s"),
+			MoonMesh ? TEXT("succeeded") : TEXT("FAILED — check Blueprint components"));
+	}
+	if (!MoonLight)
+	{
+		MoonLight = Cast<UDirectionalLightComponent>(
+			GetDefaultSubobjectByName(TEXT("MoonLight")));
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("AstroDayNightManager — SunLight:%s MoonLight:%s MoonMesh:%s"),
+		SunLight  ? TEXT("OK") : TEXT("NULL"),
+		MoonLight ? TEXT("OK") : TEXT("NULL"),
+		MoonMesh  ? TEXT("OK") : TEXT("NULL"));
+
+	// Dynamic material instance lets us fade the stars in and out at runtime
+	if (StarDome && StarDome->GetMaterial(0))
+	{
+		StarMID = StarDome->CreateDynamicMaterialInstance(0);
+	}
+
+	// Dynamic material instance for the moon so we can feed it the live sun direction
+	// for phase / terminator shading
+	if (MoonMesh && MoonMesh->GetMaterial(0))
+	{
+		MoonMID = MoonMesh->CreateDynamicMaterialInstance(0);
+	}
+
+	UpdateSun();
+	UpdateMoon();
+	UpdateSkyLight();
+	UpdateStars();
+}
+
+void AAstroDayNightManager::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	if (!bPaused) AdvanceTime(DeltaTime);
+	UpdateSun();
+	UpdateMoon();
+	UpdateSkyLight();
+	UpdateStars();
+}
+
+//──────────────────────────────────────────────────────────────────────────────
+// Time
+//──────────────────────────────────────────────────────────────────────────────
+
+void AAstroDayNightManager::AdvanceTime(float DeltaTime)
+{
+	CurrentDateTime += FTimespan::FromSeconds(
+		static_cast<double>(DeltaTime) * static_cast<double>(TimeScale));
+
+	const int32 Today = CurrentDateTime.GetDay();
+	if (Today != PrevDay) { PrevDay = Today; OnDayChanged.Broadcast(Today); }
+
+	OnTimeChanged.Broadcast(GetTimeOfDayHours());
+}
+
+void AAstroDayNightManager::SetTimeOfDay(float Hours)
+{
+	Hours        = FMath::Clamp(Hours, 0.0f, 23.9999f);
+	const int32 H  = FMath::FloorToInt(Hours);
+	const int32 Mi = FMath::FloorToInt(FMath::Frac(Hours) * 60.0f);
+	const int32 S  = FMath::FloorToInt(FMath::Frac(Hours * 60.0f) * 60.0f);
+	CurrentDateTime = FDateTime(
+		CurrentDateTime.GetYear(), CurrentDateTime.GetMonth(), CurrentDateTime.GetDay(),
+		H, Mi, S);
+}
+
+float AAstroDayNightManager::GetTimeOfDayHours() const
+{
+	return static_cast<float>(CurrentDateTime.GetHour())
+	     + static_cast<float>(CurrentDateTime.GetMinute()) / 60.0f
+	     + static_cast<float>(CurrentDateTime.GetSecond()) / 3600.0f;
+}
+
+float AAstroDayNightManager::GetNormalizedTimeOfDay() const
+{
+	return GetTimeOfDayHours() / 24.0f;
+}
+
+//──────────────────────────────────────────────────────────────────────────────
+// Sun
+//──────────────────────────────────────────────────────────────────────────────
+
+void AAstroDayNightManager::UpdateSun()
+{
+	if (!SunLight) return;
+
+	USunPositionFunctionLibrary::GetSunPosition(
+		Latitude, Longitude, TimeZone, bDaylightSaving,
+		CurrentDateTime.GetYear(), CurrentDateTime.GetMonth(), CurrentDateTime.GetDay(),
+		CurrentDateTime.GetHour(), CurrentDateTime.GetMinute(), CurrentDateTime.GetSecond(),
+		CachedSunData);
+
+	// The SunPosition plugin reports Elevation/CorrectedElevation offset by +180°
+	// "to fit UE's coord system" (Engine SunPosition.cpp ~L143). Undo the offset so
+	// every threshold below works with a true astronomical elevation in [-90, 90].
+	const float TrueElevation          = CachedSunData.Elevation          - 180.0f;
+	const float TrueCorrectedElevation = CachedSunData.CorrectedElevation - 180.0f;
+
+	SunElevation = TrueElevation;
+
+	// Pitch uses the plugin's OFFSET value directly — that +180 is exactly the term
+	// that orients the light correctly. Negating it inverts day/night (bright sky at
+	// midnight), which is the bug we were chasing.
+	const FRotator SunRotation(CachedSunData.CorrectedElevation, CachedSunData.Azimuth, 0.0f);
+	const float Intensity = ComputeSunIntensity();
+
+	if (TrueCorrectedElevation < -18.0f)
+	{
+		// Astronomical night — park the light straight down so the Sky Atmosphere
+		// doesn't scatter a horizon glow from a sub-horizon light direction
+		SunLight->SetWorldRotation(FRotator(-90.0f, 0.0f, 0.0f));
+		SunLight->SetIntensity(0.0f);
+	}
+	else
+	{
+		SunLight->SetWorldRotation(SunRotation);
+		SunLight->SetIntensity(Intensity);
+		SunLight->SetLightColor(ComputeSunColor() * SunDiscColor);
+		SunLight->LightSourceAngle = SunDiscAngle;
+	}
+
+	const bool bNowDay = CachedSunData.CorrectedElevation > 0.0f;
+	bIsDay = bNowDay;
+	if ( bNowDay && !bWasDay) OnSunrise.Broadcast(CurrentDateTime);
+	if (!bNowDay &&  bWasDay) OnSunset.Broadcast(CurrentDateTime);
+	bWasDay = bNowDay;
+
+	// Dawn / Dusk — civil twilight boundary (sun at -6°)
+	const bool bIsCivilTwilight = SunElevation > -6.0f;
+	if ( bIsCivilTwilight && !bWasCivilTwilight) OnDawn.Broadcast(CurrentDateTime);
+	if (!bIsCivilTwilight &&  bWasCivilTwilight) OnDusk.Broadcast(CurrentDateTime);
+	bWasCivilTwilight = bIsCivilTwilight;
+
+}
+
+float AAstroDayNightManager::ComputeSunIntensity() const
+{
+	if (SunElevation <= 0.0f) return 0.0f;
+	const float T = FMath::Clamp(SunElevation / 15.0f, 0.0f, 1.0f);
+	return FMath::Lerp(SunHorizonIntensity, SunMaxIntensity, T);
+}
+
+FLinearColor AAstroDayNightManager::ComputeSunColor() const
+{
+	const float T = FMath::Clamp((SunElevation + 6.0f) / 36.0f, 0.0f, 1.0f);
+	const FLinearColor Horizon(1.0f, 0.45f, 0.1f);
+	const FLinearColor Zenith (1.0f, 0.97f, 0.92f);
+	return FLinearColor::LerpUsingHSV(Horizon, Zenith, T);
+}
+
+//──────────────────────────────────────────────────────────────────────────────
+// Moon — Meeus Chapter 47
+//──────────────────────────────────────────────────────────────────────────────
+
+void AAstroDayNightManager::UpdateMoon()
+{
+	if (!MoonLight) return;
+
+	const double JD = ComputeJulianDate();
+	const double T  = (JD - 2451545.0) / 36525.0;   // Julian centuries from J2000.0
+
+	// Lunar ecliptic coordinates
+	double EclLon, EclLat, DistKm;
+	ComputeLunarEcliptic(T, EclLon, EclLat, DistKm);
+	MoonDistanceKm = static_cast<float>(DistKm);
+
+	// Moon phase from ecliptic longitude of moon vs sun
+	// Sun's approximate ecliptic longitude (degrees)
+	const double SunLon = Norm360(280.46646 + 36000.76983*T);
+	const double ElongDeg = Norm360(EclLon - SunLon);
+	// Phase: 0 = new, 0.5 = full
+	MoonPhase = static_cast<float>(ElongDeg / 360.0);
+
+	// Ecliptic → equatorial
+	const double Epsilon = ComputeObliquity(T);
+	double RA, Dec;
+	EclipticToEquatorial(EclLon, EclLat, Epsilon, RA, Dec);
+
+	// Equatorial → horizontal
+	const double GMST = ComputeGMST(JD);
+	double MoonAz, MoonAlt;
+	EquatorialToHorizontal(RA, Dec, GMST,
+		static_cast<double>(Latitude),
+		static_cast<double>(Longitude),
+		MoonAz, MoonAlt);
+
+	// Atmospheric refraction
+	const float CorrectedAlt = ApplyAtmosphericRefraction(static_cast<float>(MoonAlt));
+	MoonAltitude = CorrectedAlt;
+
+	// Drive the light — match the sun's +180° elevation convention so the moon shares
+	// the sun's azimuth frame (rises east / sets west) instead of being mirrored across
+	// the sky. The mesh dir below (-Vector) then correctly points at the moon.
+	const FRotator MoonRotation(180.0f + CorrectedAlt, static_cast<float>(MoonAz), 0.0f);
+	MoonLight->SetWorldRotation(MoonRotation);
+
+	// Intensity: full moon is brightest, dims with phase and elevation
+	// PhaseFactor: 1.0 at full moon (phase=0.5), 0.0 at new moon (phase=0 or 1)
+	const float PhaseFactor     = 1.0f - FMath::Abs(MoonPhase * 2.0f - 1.0f);
+	const float ElevationFactor = FMath::Clamp(
+		FMath::Sin(FMath::DegreesToRadians(CorrectedAlt)), 0.0f, 1.0f);
+	MoonLight->SetIntensity(MoonMaxIntensity * PhaseFactor * ElevationFactor);
+
+	// Moonrise / Moonset
+	const bool bIsMoonUp = MoonAltitude > 0.0f;
+	if ( bIsMoonUp && !bWasMoonUp) OnMoonrise.Broadcast(CurrentDateTime);
+	if (!bIsMoonUp &&  bWasMoonUp) OnMoonset.Broadcast(CurrentDateTime);
+	bWasMoonUp = bIsMoonUp;
+
+	// Full Moon / New Moon — fire once on entering the phase window
+	const bool bInFullMoonZone = (MoonPhase >= 0.46f && MoonPhase <= 0.54f);
+	const bool bInNewMoonZone  = (MoonPhase <= 0.04f || MoonPhase >= 0.96f);
+	if (bInFullMoonZone && !bWasInFullMoonZone) OnFullMoon.Broadcast(CurrentDateTime);
+	if (bInNewMoonZone  && !bWasInNewMoonZone)  OnNewMoon.Broadcast(CurrentDateTime);
+	bWasInFullMoonZone = bInFullMoonZone;
+	bWasInNewMoonZone  = bInNewMoonZone;
+
+	// Position moon mesh relative to camera
+	if (MoonMesh)
+	{
+		// Negate: MoonRotation.Vector() points toward the ground (light travel direction).
+		// We want the direction toward the moon — the opposite.
+		const FVector Dir = -MoonRotation.Vector();
+		MoonMesh->SetWorldLocation(GetObserverLocation() + Dir * MoonMeshDistance);
+
+		// Tidal lock: keep a fixed face toward the viewer so surface features don't
+		// drift as the moon crosses the sky. Spinning the sphere doesn't affect the
+		// phase — its geometric normals stay radial in world space.
+		MoonMesh->SetWorldRotation((-Dir).Rotation());
+
+		// Subtle size variation: ~7% larger at perigee vs apogee (384400 km mean)
+		const float SizeFactor = 384400.0f / FMath::Max(MoonDistanceKm, 356500.0f);
+		MoonMesh->SetWorldScale3D(FVector(MoonMeshScale * SizeFactor));
+		MoonMesh->SetVisibility(CorrectedAlt > -5.0f);
+
+		// Feed the sun's world direction to the moon material so it can light the
+		// sun-facing hemisphere and draw the terminator — i.e. the visible phase.
+		// The sun is ~400× farther than the moon, so observer→sun ≈ moon→sun.
+		if (MoonMID)
+		{
+			const float   SunTrueElev = CachedSunData.Elevation - 180.0f;
+			const FVector SunDir = FRotator(SunTrueElev, CachedSunData.Azimuth, 0.0f).Vector();
+			MoonMID->SetVectorParameterValue(TEXT("SunDirection"),
+				FLinearColor(SunDir.X, SunDir.Y, SunDir.Z, 0.0f));
+		}
+	}
+}
+
+FString AAstroDayNightManager::GetMoonPhaseName() const
+{
+	if      (MoonPhase < 0.0625f || MoonPhase >= 0.9375f) return TEXT("New Moon");
+	else if (MoonPhase < 0.1875f) return TEXT("Waxing Crescent");
+	else if (MoonPhase < 0.3125f) return TEXT("First Quarter");
+	else if (MoonPhase < 0.4375f) return TEXT("Waxing Gibbous");
+	else if (MoonPhase < 0.5625f) return TEXT("Full Moon");
+	else if (MoonPhase < 0.6875f) return TEXT("Waning Gibbous");
+	else if (MoonPhase < 0.8125f) return TEXT("Last Quarter");
+	else                           return TEXT("Waning Crescent");
+}
+
+//──────────────────────────────────────────────────────────────────────────────
+// Meeus Chapter 47 — Lunar Ecliptic Coordinates
+//──────────────────────────────────────────────────────────────────────────────
+
+void AAstroDayNightManager::ComputeLunarEcliptic(double T,
+	double& OutLon, double& OutLat, double& OutDist) const
+{
+	// ── Fundamental arguments (Meeus Eq. 47.1, degrees) ──────────────────────
+	const double Lp = Norm360(218.3164477  + 481267.88123421*T
+	                        - 0.0015786*T*T + T*T*T/538841.0
+	                        - T*T*T*T/65194000.0);
+
+	const double D  = Norm360(297.8501921  + 445267.1114034*T
+	                        - 0.0018819*T*T + T*T*T/545868.0
+	                        - T*T*T*T/113065000.0);
+
+	const double M  = Norm360(357.5291092  + 35999.0502909*T
+	                        - 0.0001536*T*T + T*T*T/24490000.0);
+
+	const double Mp = Norm360(134.9633964  + 477198.8675055*T
+	                        + 0.0087414*T*T + T*T*T/69699.0
+	                        - T*T*T*T/14712000.0);
+
+	const double F  = Norm360(93.2720950   + 483202.0175233*T
+	                        - 0.0036539*T*T - T*T*T/3526000.0
+	                        + T*T*T*T/863310000.0);
+
+	// Additional argument terms for corrections
+	const double A1 = Norm360(119.75 + 131.849*T);
+	const double A2 = Norm360( 53.09 + 479264.290*T);
+	const double A3 = Norm360(313.45 + 481266.484*T);
+
+	// Convert to radians
+	const double Lp_r = DToR(Lp), D_r  = DToR(D),  M_r  = DToR(M);
+	const double Mp_r = DToR(Mp), F_r  = DToR(F);
+	const double A1_r = DToR(A1), A2_r = DToR(A2), A3_r = DToR(A3);
+
+	// ── Eccentricity correction ───────────────────────────────────────────────
+	const double E  = 1.0 - 0.002516*T - 0.0000074*T*T;
+	const double E2 = E * E;
+
+	// ── Periodic terms — longitude and distance (Table 47.A) ─────────────────
+	// Coefficients: Sl in units of 1e-6 degrees, Sr in units of 1e-3 km
+	// Terms with |M|=1 are multiplied by E, |M|=2 by E²
+	struct FLonTerm { int D, M, Mp, F; double Sl, Sr; };
+	static const FLonTerm LonTerms[] = {
+		{ 0,  0,  1,  0,  6288774.0, -20905355.0 },
+		{ 2,  0, -1,  0,  1274027.0,  -3699111.0 },
+		{ 2,  0,  0,  0,   658314.0,  -2955968.0 },
+		{ 0,  0,  2,  0,   213618.0,   -569925.0 },
+		{ 0,  1,  0,  0,  -185116.0,    +48888.0 },
+		{ 0,  0,  0,  2,  -114332.0,     -3149.0 },
+		{ 2,  0, -2,  0,    58793.0,   +246158.0 },
+		{ 2, -1, -1,  0,    57066.0,   -152138.0 },
+		{ 2,  0,  1,  0,    53322.0,   -170733.0 },
+		{ 2, -1,  0,  0,    45758.0,   -204586.0 },
+		{ 0,  1, -1,  0,   -40923.0,   -129620.0 },
+		{ 1,  0,  0,  0,   -34720.0,   +108743.0 },
+		{ 0,  1,  1,  0,   -30383.0,   +104755.0 },
+		{ 2,  0,  0, -2,    15327.0,    +10321.0 },
+		{ 0,  0,  1,  2,   -12528.0,         0.0 },
+		{ 0,  0,  1, -2,    10980.0,    +79661.0 },
+		{ 4,  0, -1,  0,    10675.0,    -34782.0 },
+		{ 0,  0,  3,  0,    10034.0,    -23210.0 },
+		{ 4,  0, -2,  0,     8548.0,    -21636.0 },
+		{ 2,  1, -1,  0,    -7888.0,    +24208.0 },
+		{ 2,  1,  0,  0,    -6766.0,    +30824.0 },
+		{ 1,  0, -1,  0,    -5163.0,     -8379.0 },
+		{ 1,  1,  0,  0,     4987.0,    -16675.0 },
+		{ 2, -1,  1,  0,     4036.0,    -12831.0 },
+		{ 2,  0,  2,  0,     3994.0,    -10445.0 },
+		{ 4,  0,  0,  0,     3861.0,    -11650.0 },
+		{ 2,  0, -3,  0,     3665.0,    +14403.0 },
+		{ 0,  1, -2,  0,    -2689.0,     -7003.0 },
+		{ 2,  0, -1,  2,    -2602.0,         0.0 },
+		{ 2, -1, -2,  0,     2390.0,    +10056.0 },
+		{ 1,  0,  1,  0,    -2348.0,     +6322.0 },
+		{ 2, -2,  0,  0,     2236.0,     -9884.0 },
+		{ 0,  1,  2,  0,    -2120.0,     +5751.0 },
+		{ 0,  2,  0,  0,    -2069.0,         0.0 },
+		{ 2, -2, -1,  0,     2048.0,     -4950.0 },
+	};
+
+	// ── Periodic terms — latitude (Table 47.B) ────────────────────────────────
+	// Coefficients: Sb in units of 1e-6 degrees
+	struct FLatTerm { int D, M, Mp, F; double Sb; };
+	static const FLatTerm LatTerms[] = {
+		{ 0,  0,  0,  1,  5128122.0 },
+		{ 0,  0,  1,  1,   280602.0 },
+		{ 0,  0,  1, -1,   277693.0 },
+		{ 2,  0,  0, -1,   173237.0 },
+		{ 2,  0, -1,  1,    55413.0 },
+		{ 2,  0, -1, -1,    46271.0 },
+		{ 2,  0,  0,  1,    32573.0 },
+		{ 0,  0,  2,  1,    17198.0 },
+		{ 2,  0,  1, -1,     9266.0 },
+		{ 0,  0,  2, -1,     8822.0 },
+		{ 2, -1,  0, -1,     8216.0 },
+		{ 2,  0, -2, -1,     4324.0 },
+		{ 2,  0,  1,  1,     4200.0 },
+		{ 2,  1,  0, -1,    -3359.0 },
+		{ 2, -1, -1,  1,     2463.0 },
+		{ 2, -1,  0,  1,     2211.0 },
+		{ 2, -1, -1, -1,     2065.0 },
+		{ 0,  1, -1, -1,    -1870.0 },
+		{ 4,  0, -1, -1,     1828.0 },
+		{ 0,  1,  0,  1,    -1794.0 },
+	};
+
+	// ── Sum longitude terms ───────────────────────────────────────────────────
+	double SumL = 0.0, SumR = 0.0;
+	for (const auto& t : LonTerms)
+	{
+		const double arg = t.D*D_r + t.M*M_r + t.Mp*Mp_r + t.F*F_r;
+		const double Ec  = (FMath::Abs(t.M) == 2) ? E2
+		                 : (FMath::Abs(t.M) == 1) ? E : 1.0;
+		SumL += Ec * t.Sl * FMath::Sin(arg);
+		SumR += Ec * t.Sr * FMath::Cos(arg);
+	}
+
+	// Additional longitude corrections (Meeus p. 338)
+	SumL += 3958.0 * FMath::Sin(A1_r)
+	      + 1962.0 * FMath::Sin(Lp_r - F_r)
+	      +  318.0 * FMath::Sin(A2_r);
+
+	// ── Sum latitude terms ────────────────────────────────────────────────────
+	double SumB = 0.0;
+	for (const auto& t : LatTerms)
+	{
+		const double arg = t.D*D_r + t.M*M_r + t.Mp*Mp_r + t.F*F_r;
+		const double Ec  = (FMath::Abs(t.M) == 2) ? E2
+		                 : (FMath::Abs(t.M) == 1) ? E : 1.0;
+		SumB += Ec * t.Sb * FMath::Sin(arg);
+	}
+
+	// Additional latitude corrections
+	SumB += -2235.0 * FMath::Sin(Lp_r)
+	        +  382.0 * FMath::Sin(A3_r)
+	        +  175.0 * FMath::Sin(A1_r - F_r)
+	        +  175.0 * FMath::Sin(A1_r + F_r)
+	        +  127.0 * FMath::Sin(Lp_r - Mp_r)
+	        -  115.0 * FMath::Sin(Lp_r + Mp_r);
+
+	// ── Results ───────────────────────────────────────────────────────────────
+	OutLon  = Norm360(Lp + SumL * 1.0e-6);   // apparent geocentric ecliptic longitude
+	OutLat  = SumB * 1.0e-6;                  // geocentric ecliptic latitude
+	OutDist = 385000.56 + SumR * 1.0e-3;      // Earth-Moon distance (km)
+}
+
+//──────────────────────────────────────────────────────────────────────────────
+// Coordinate Conversions
+//──────────────────────────────────────────────────────────────────────────────
+
+void AAstroDayNightManager::EclipticToEquatorial(
+	double LambdaDeg, double BetaDeg, double EpsilonDeg,
+	double& OutRA, double& OutDec) const
+{
+	const double L   = DToR(LambdaDeg);
+	const double B   = DToR(BetaDeg);
+	const double Eps = DToR(EpsilonDeg);
+
+	// Meeus Eq. 13.3 / 13.4
+	OutRA  = RToD(FMath::Atan2(
+		FMath::Sin(L)*FMath::Cos(Eps) - FMath::Tan(B)*FMath::Sin(Eps),
+		FMath::Cos(L)));
+	OutRA  = Norm360(OutRA);
+
+	OutDec = RToD(FMath::Asin(
+		FMath::Sin(B)*FMath::Cos(Eps) +
+		FMath::Cos(B)*FMath::Sin(Eps)*FMath::Sin(L)));
+}
+
+void AAstroDayNightManager::EquatorialToHorizontal(
+	double RA, double Dec, double GMST,
+	double Lat, double Lon,
+	double& OutAz, double& OutAlt) const
+{
+	// Local Mean Sidereal Time and hour angle (degrees)
+	const double LMST = Norm360(GMST + Lon);
+	const double H    = DToR(Norm360(LMST - RA));   // hour angle, positive westward
+
+	const double LatR = DToR(Lat);
+	const double DecR = DToR(Dec);
+
+	// Altitude
+	const double SinAlt = FMath::Sin(LatR)*FMath::Sin(DecR)
+	                    + FMath::Cos(LatR)*FMath::Cos(DecR)*FMath::Cos(H);
+	OutAlt = RToD(FMath::Asin(SinAlt));
+
+	// Azimuth from North, clockwise (0=N, 90=E, 180=S, 270=W)
+	const double Az = RToD(FMath::Atan2(
+		-FMath::Cos(DecR) * FMath::Sin(H),
+		FMath::Sin(DecR)*FMath::Cos(LatR) - FMath::Cos(DecR)*FMath::Cos(H)*FMath::Sin(LatR)));
+	OutAz = Norm360(Az);
+}
+
+float AAstroDayNightManager::ApplyAtmosphericRefraction(float AltDeg) const
+{
+	// Bennett (1982) formula — accurate to 0.07' for alt > -5°
+	// Below -1° the refraction is large and variable; clamp the correction there.
+	if (AltDeg < -1.0f) return AltDeg;
+
+	// R in arcminutes
+	const double dAlt = static_cast<double>(AltDeg);
+	const double R    = 1.02 / FMath::Tan(DToR(dAlt + 10.3 / (dAlt + 5.11)));
+	return AltDeg + static_cast<float>(R / 60.0);   // convert arcmin → degrees
+}
+
+//──────────────────────────────────────────────────────────────────────────────
+// Julian Date and Sidereal Time
+//──────────────────────────────────────────────────────────────────────────────
+
+double AAstroDayNightManager::ComputeJulianDate() const
+{
+	const int32 Y  = CurrentDateTime.GetYear();
+	const int32 Mo = CurrentDateTime.GetMonth();
+	const int32 D  = CurrentDateTime.GetDay();
+	const int32 H  = CurrentDateTime.GetHour();
+	const int32 Mi = CurrentDateTime.GetMinute();
+	const int32 S  = CurrentDateTime.GetSecond();
+
+	// Meeus Chapter 7 — proleptic Gregorian calendar
+	const int32 A  = (14 - Mo) / 12;
+	const int32 Yr = Y + 4800 - A;
+	const int32 M  = Mo + 12*A - 3;
+
+	double JD = D
+	          + (153*M + 2) / 5
+	          + 365*Yr
+	          + Yr/4 - Yr/100 + Yr/400
+	          - 32045;
+
+	// Fractional day (JD epoch is noon UT, hence -12h)
+	JD += (H - 12.0) / 24.0 + Mi / 1440.0 + S / 86400.0;
+	return JD;
+}
+
+double AAstroDayNightManager::ComputeGMST(double JD) const
+{
+	// Meeus Eq. 12.4 — Greenwich Mean Sidereal Time in degrees
+	const double T = (JD - 2451545.0) / 36525.0;
+	double GMST = 280.46061837
+	            + 360.98564736629 * (JD - 2451545.0)
+	            + 0.000387933 * T*T
+	            - T*T*T / 38710000.0;
+	return Norm360(GMST);
+}
+
+double AAstroDayNightManager::ComputeObliquity(double T) const
+{
+	// Meeus Eq. 22.2 — mean obliquity of the ecliptic (degrees)
+	// Accurate to ~0.001° over several centuries around J2000
+	return 23.439291111
+	     - 0.013004167 * T
+	     - 0.0001638889 * T*T
+	     + 0.0503611111 * T*T*T;
+}
+
+//──────────────────────────────────────────────────────────────────────────────
+// Sky Light
+//──────────────────────────────────────────────────────────────────────────────
+
+void AAstroDayNightManager::UpdateSkyLight()
+{
+	// T = 0 at night (-10° and below), T = 1 at day (+10° and above)
+	const float T = FMath::Clamp((SunElevation + 10.0f) / 20.0f, 0.0f, 1.0f);
+
+	if (SkyLight)
+	{
+		SkyLight->SetIntensity(FMath::Lerp(NightSkyLightFloor, 1.0f, T));
+	}
+
+	// Always-on dim fill that ramps in at night so the scene never goes pure black,
+	// independent of the moon. Aimed along the camera so whatever you look at is lifted.
+	if (NightFillLight)
+	{
+		NightFillLight->SetIntensity(NightFillIntensity * (1.0f - T));
+		NightFillLight->SetLightColor(NightFillColor);
+		if (const UWorld* W = GetWorld())
+		{
+			if (const APlayerController* PC = W->GetFirstPlayerController())
+			{
+				if (PC->PlayerCameraManager)
+				{
+					NightFillLight->SetWorldRotation(PC->PlayerCameraManager->GetCameraRotation());
+				}
+			}
+		}
+	}
+
+	if (SkyAtmosphere)
+	{
+		// Fade Rayleigh scattering to near-zero at night so the zenith
+		// doesn't glow blue independently of the sun position
+		SkyAtmosphere->RayleighScatteringScale = FMath::Lerp(0.002f, 0.0331f, T);
+		SkyAtmosphere->MarkRenderStateDirty();
+	}
+}
+
+//──────────────────────────────────────────────────────────────────────────────
+// Stars
+//──────────────────────────────────────────────────────────────────────────────
+
+void AAstroDayNightManager::UpdateStars()
+{
+	if (!StarDome) return;
+
+	// ── Brightness: fade in as the sun sinks below the horizon ──────────────────
+	const float FadeRange = StarFadeStartElevation - StarFadeEndElevation;
+	const float T = (FMath::Abs(FadeRange) > KINDA_SMALL_NUMBER)
+		? FMath::Clamp((SunElevation - StarFadeEndElevation) / FadeRange, 0.0f, 1.0f)
+		: (SunElevation <= StarFadeEndElevation ? 0.0f : 1.0f);
+	const float Brightness = (1.0f - T) * StarMaxBrightness;
+
+	const bool bVisible = Brightness > KINDA_SMALL_NUMBER;
+	StarDome->SetVisibility(bVisible);
+	if (!bVisible) return;
+
+	if (StarMID)
+	{
+		StarMID->SetScalarParameterValue(StarBrightnessParam, Brightness);
+	}
+
+	// ── Anchor the dome on the viewer so the stars sit at "infinity" ────────────
+	StarDome->SetWorldLocation(GetObserverLocation());
+	StarDome->SetWorldScale3D(FVector(StarDomeScale));
+
+	if (!bStarsRotateWithSky) return;
+
+	// ── Orientation: rotate the celestial sphere by sidereal time + latitude ────
+	const double JD   = ComputeJulianDate();
+	const double GMST = ComputeGMST(JD);
+
+	// Same (Az,Alt) → world-direction convention the moon mesh uses
+	auto HorizDir = [](double AzDeg, double AltDeg) -> FVector
+	{
+		// Sky-position direction in the shared sun/moon azimuth frame
+		return FRotator(static_cast<float>(AltDeg),
+		                static_cast<float>(AzDeg), 0.0f).Vector();
+	};
+
+	// North celestial pole (Dec = +90) and an equator reference point (RA = 0, Dec = 0)
+	double AzP, AltP, AzR, AltR;
+	EquatorialToHorizontal(0.0, 90.0, GMST,
+		static_cast<double>(Latitude), static_cast<double>(Longitude), AzP, AltP);
+	EquatorialToHorizontal(0.0,  0.0, GMST,
+		static_cast<double>(Latitude), static_cast<double>(Longitude), AzR, AltR);
+
+	FVector PoleDir = HorizDir(AzP, AltP).GetSafeNormal();
+	FVector RefDir  = HorizDir(AzR, AltR).GetSafeNormal();
+
+	// One-time spin about the pole to line the texture's RA = 0 up with reality
+	if (!FMath::IsNearlyZero(StarYawOffset))
+	{
+		RefDir = RefDir.RotateAngleAxis(StarYawOffset, PoleDir);
+	}
+
+	// Dome local +Z → celestial pole, local +X → RA 0 on the celestial equator
+	const FRotator DomeRot = FRotationMatrix::MakeFromXZ(RefDir, PoleDir).Rotator();
+	StarDome->SetWorldRotation(DomeRot);
+}
+
+//──────────────────────────────────────────────────────────────────────────────
+// Utilities
+//──────────────────────────────────────────────────────────────────────────────
+
+FVector AAstroDayNightManager::GetObserverLocation() const
+{
+	if (const UWorld* World = GetWorld())
+	{
+		if (const APlayerController* PC = World->GetFirstPlayerController())
+		{
+			if (PC->PlayerCameraManager)
+				return PC->PlayerCameraManager->GetCameraLocation();
+		}
+	}
+	return GetActorLocation();
+}
