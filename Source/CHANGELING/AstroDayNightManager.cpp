@@ -12,6 +12,9 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "Misc/Paths.h"
+#include "StarCatalog.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Convenience: degrees ↔ radians
@@ -131,6 +134,29 @@ void AAstroDayNightManager::BeginPlay()
 	if (MoonMesh && MoonMesh->GetMaterial(0))
 	{
 		MoonMID = MoonMesh->CreateDynamicMaterialInstance(0);
+	}
+
+	// Bake the real star catalogue into the dome's texture (equirectangular, masked-friendly).
+	if (bGenerateRealStars && StarMID)
+	{
+		TArray<FCatalogStar> Catalog;
+		StarCatalog::AppendBrightStars(Catalog);
+		if (!StarCatalogCsv.IsEmpty())
+		{
+			const FString Path = FPaths::IsRelative(StarCatalogCsv)
+				? FPaths::ProjectDir() / StarCatalogCsv : StarCatalogCsv;
+			const int32 Loaded = StarCatalog::AppendFromHYGCsv(Path, Catalog);
+			UE_LOG(LogTemp, Log, TEXT("StarCatalog: +%d stars from %s"), Loaded, *Path);
+		}
+		const int32 W = FMath::Max(512, StarTextureWidth);
+		StarRenderTarget = StarCatalog::Bake(this, Catalog, W, W / 2,
+			StarMagnitudeLimit, StarProceduralFill);
+		if (StarRenderTarget)
+		{
+			StarMID->SetTextureParameterValue(StarTextureParam, StarRenderTarget);
+			UE_LOG(LogTemp, Log, TEXT("StarCatalog: baked %d stars into %dx%d"),
+				Catalog.Num(), W, W / 2);
+		}
 	}
 
 	UpdateSun();
@@ -305,12 +331,25 @@ void AAstroDayNightManager::UpdateMoon()
 	const FRotator MoonRotation(180.0f + CorrectedAlt, static_cast<float>(MoonAz), 0.0f);
 	MoonLight->SetWorldRotation(MoonRotation);
 
-	// Intensity: full moon is brightest, dims with phase and elevation
-	// PhaseFactor: 1.0 at full moon (phase=0.5), 0.0 at new moon (phase=0 or 1)
-	const float PhaseFactor     = 1.0f - FMath::Abs(MoonPhase * 2.0f - 1.0f);
+	// Intensity & colour from phase + altitude.
+	// Illuminated fraction (smooth, geometric): 0 at new moon → 1 at full.
+	const float SinHalf = FMath::Sin(PI * MoonPhase);
+	const float Illum   = SinHalf * SinHalf;                 // sin²(π·phase) = (1−cos)/2
+	// Photometric non-linearity: a full moon is ~12× a quarter, so a quarter must read
+	// far dimmer than "half". Squaring the fraction pulls the quarters down (≈0.25, not 0.5).
+	const float PhaseFactor     = Illum * Illum;
+	// Illuminance on the ground ∝ sin(altitude); zero at / below the horizon.
 	const float ElevationFactor = FMath::Clamp(
 		FMath::Sin(FMath::DegreesToRadians(CorrectedAlt)), 0.0f, 1.0f);
 	MoonLight->SetIntensity(MoonMaxIntensity * PhaseFactor * ElevationFactor);
+	MoonIllumination = PhaseFactor * ElevationFactor;   // shared with the night ambient
+
+	// Warm the moonlight as it sinks toward the horizon (atmospheric reddening — the
+	// "harvest moon"); cool blue-white when high overhead.
+	const FLinearColor MoonHigh(0.62f, 0.70f, 1.00f);
+	const FLinearColor MoonLow (1.00f, 0.72f, 0.45f);
+	const float HorizonT = FMath::Clamp(CorrectedAlt / 18.0f, 0.0f, 1.0f);
+	MoonLight->SetLightColor(FMath::Lerp(MoonLow, MoonHigh, HorizonT));
 
 	// Moonrise / Moonset
 	const bool bIsMoonUp = MoonAltitude > 0.0f;
@@ -638,7 +677,10 @@ void AAstroDayNightManager::UpdateSkyLight()
 
 	if (SkyLight)
 	{
-		SkyLight->SetIntensity(FMath::Lerp(NightSkyLightFloor, 1.0f, T));
+		// Lift the night floor by the moon's illumination — a full, high moon brightens
+		// the whole sky; a new moon leaves just the base floor.
+		const float NightFloor = NightSkyLightFloor + MoonIllumination * MoonAmbientBoost;
+		SkyLight->SetIntensity(FMath::Lerp(NightFloor, 1.0f, T));
 	}
 
 	// Always-on dim fill that ramps in at night so the scene never goes pure black,
@@ -692,8 +734,11 @@ void AAstroDayNightManager::UpdateStars()
 		StarMID->SetScalarParameterValue(StarBrightnessParam, Brightness);
 	}
 
-	// ── Anchor the dome on the viewer so the stars sit at "infinity" ────────────
-	StarDome->SetWorldLocation(GetObserverLocation());
+	// ── Pin the dome to the actor (NOT the camera). Re-anchoring it to the camera
+	//    every frame fed the velocity buffer phantom motion and motion-blurred the
+	//    stars; at this radius the parallax from the viewer moving is negligible, so
+	//    it sits still and only rotates.
+	StarDome->SetWorldLocation(GetActorLocation());
 	StarDome->SetWorldScale3D(FVector(StarDomeScale));
 
 	if (!bStarsRotateWithSky) return;

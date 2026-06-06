@@ -17,6 +17,7 @@
 #include "AstroDayNightManager.generated.h"
 
 class UMaterialInstanceDynamic;
+class UTextureRenderTarget2D;
 
 // ── Delegates ─────────────────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ public:
 	//──────────────────────────────────────────────────────────────
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Moon")
-	float MoonMaxIntensity = 0.1f;
+	float MoonMaxIntensity = 0.04f;   // soft country moonlight, not a floodlight
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Moon")
 	float MoonMeshDistance = 600000.0f;
@@ -147,16 +148,21 @@ public:
 	/** SkyLight ambient intensity at full night (day = 1.0). Raise to see the world;
 	 *  too high washes out the stars. Moonlight (MoonMaxIntensity) is the nicer source. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sky", meta = (ClampMin = "0.0"))
-	float NightSkyLightFloor = 0.5f;
+	float NightSkyLightFloor = 0.02f;   // dark-sky floor; the moon supplies the rest
 
-	/** Peak intensity of the always-on night fill (guarantees visibility even on moonless
-	 *  nights). Aimed along the view; 0 = off. */
+	/** Peak intensity of the always-on night fill, aimed along the view. 0 (default) keeps a
+	 *  true dark-sky / country night; raise it to guarantee visibility on moonless nights at
+	 *  the cost of star contrast. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sky", meta = (ClampMin = "0.0"))
-	float NightFillIntensity = 0.5f;
+	float NightFillIntensity = 0.0f;
 
 	/** Tint of the night fill light */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sky")
 	FLinearColor NightFillColor = FLinearColor(0.5f, 0.6f, 0.9f);
+
+	/** How much a full, high moon lifts the night SkyLight ambient (0 = moon doesn't brighten it) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sky", meta = (ClampMin = "0.0"))
+	float MoonAmbientBoost = 0.3f;
 
 	//──────────────────────────────────────────────────────────────
 	// Stars
@@ -168,7 +174,7 @@ public:
 
 	/** Emissive multiplier handed to the star material at full night */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stars")
-	float StarMaxBrightness = 1.0f;
+	float StarMaxBrightness = 1.5f;
 
 	/** Sun elevation (deg) at/above which the stars are fully hidden */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stars")
@@ -191,6 +197,34 @@ public:
 	FName StarBrightnessParam = "StarBrightness";
 
 	//──────────────────────────────────────────────────────────────
+	// Real star catalogue (baked equirectangular texture)
+	//──────────────────────────────────────────────────────────────
+
+	/** Bake real star positions into the dome texture at BeginPlay. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stars|Catalog")
+	bool bGenerateRealStars = true;
+
+	/** Width of the baked star texture (height = width/2). 4096 ≈ 67 MB at RGBA16f. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stars|Catalog", meta = (ClampMin = "512"))
+	int32 StarTextureWidth = 4096;
+
+	/** Faintest apparent magnitude to draw (naked-eye limit ≈ 6.0; 6.5 for a dark country sky). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stars|Catalog")
+	float StarMagnitudeLimit = 6.5f;
+
+	/** Faint background stars scattered for density (0 = catalogue only). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stars|Catalog", meta = (ClampMin = "0"))
+	int32 StarProceduralFill = 8000;
+
+	/** Optional HYG-format CSV (ra,dec,mag,ci) under the project dir for the full ~9k sky. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stars|Catalog")
+	FString StarCatalogCsv;
+
+	/** Texture parameter in the star material the baked sky is plugged into. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stars|Catalog")
+	FName StarTextureParam = "StarTexture";
+
+	//──────────────────────────────────────────────────────────────
 	// Read-only state
 	//──────────────────────────────────────────────────────────────
 
@@ -208,6 +242,10 @@ public:
 	/** Earth-Moon distance in kilometres (varies ~356,500 – 406,700 km) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
 	float MoonDistanceKm = 384400.0f;
+
+	/** Moon's current light contribution [0,1] = phase × altitude (drives moonlight + ambient) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
+	float MoonIllumination = 0.0f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
 	bool bIsDay = false;
@@ -339,6 +377,9 @@ private:
 
 	UPROPERTY(Transient)
 	UMaterialInstanceDynamic* MoonMID = nullptr;
+
+	UPROPERTY(Transient)
+	UTextureRenderTarget2D* StarRenderTarget = nullptr;
 
 	FSunPositionData CachedSunData;
 	bool  bWasDay            = false;
