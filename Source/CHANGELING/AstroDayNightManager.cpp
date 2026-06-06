@@ -290,9 +290,15 @@ void AAstroDayNightManager::UpdateSun()
 
 float AAstroDayNightManager::ComputeSunIntensity() const
 {
-	if (SunElevation <= 0.0f) return 0.0f;
-	const float T = FMath::Clamp(SunElevation / 15.0f, 0.0f, 1.0f);
-	return FMath::Lerp(SunHorizonIntensity, SunMaxIntensity, T);
+	if (SunElevation >= 0.0f)
+	{
+		const float T = FMath::Clamp(SunElevation / 15.0f, 0.0f, 1.0f);
+		return FMath::Lerp(SunHorizonIntensity, SunMaxIntensity, T);
+	}
+	// Below the horizon: fade the direct sun smoothly to 0 by civil dusk (-6°) instead of
+	// cutting off at the horizon, so sunrise/sunset ease in/out instead of popping.
+	const float Tw = FMath::Clamp((SunElevation + 6.0f) / 6.0f, 0.0f, 1.0f);
+	return SunHorizonIntensity * Tw;
 }
 
 FLinearColor AAstroDayNightManager::ComputeSunColor() const

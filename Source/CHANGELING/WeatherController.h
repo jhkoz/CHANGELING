@@ -35,7 +35,11 @@ enum class EWeatherType : uint8
 	Foggy         UMETA(DisplayName = "Foggy"),
 	Rain          UMETA(DisplayName = "Rain"),
 	Storm         UMETA(DisplayName = "Storm"),
-	Snow          UMETA(DisplayName = "Snow")
+	Snow          UMETA(DisplayName = "Snow"),
+	Supercell     UMETA(DisplayName = "Supercell"),
+	Blizzard      UMETA(DisplayName = "Blizzard"),
+	Duststorm     UMETA(DisplayName = "Dust Storm"),
+	Tornado       UMETA(DisplayName = "Tornado")
 };
 
 /** Target conditions for a single weather type. All 0–1 except fog density. */
@@ -67,6 +71,10 @@ struct FWeatherPreset
 	/** Snow coverage 0–1 (read in your materials from the MPC) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float Snow = 0.0f;
+
+	/** Airborne dust/dirt 0–1 — drives the dust emitter and a brown haze via the MPC. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float Dust = 0.0f;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeatherChanged, EWeatherType, NewWeather);
@@ -101,6 +109,10 @@ public:
 	/** Camera-following snow emitter. Assign your snow Niagara System on this component. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weather|FX")
 	UNiagaraComponent* SnowFX;
+
+	/** Camera-following dust emitter for wind/dust storms. Assign a dust Niagara System. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weather|FX")
+	UNiagaraComponent* DustFX;
 
 	//──────────────────────────────────────────────────────────────
 	// References
@@ -244,6 +256,10 @@ public:
 	/** Niagara User *float* param fed Current.Precipitation (0–1). Drive your spawn rate from it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|FX")
 	FName PrecipRateParam = "Precipitation";
+
+	/** Niagara User *float* param fed Current.Dust (0–1) on the dust emitter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|FX")
+	FName DustParam = "Dust";
 
 	/** Niagara User *vector* param fed the wind velocity. Drive precipitation slant from it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|FX")

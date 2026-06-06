@@ -30,10 +30,14 @@ AWeatherController::AWeatherController()
 	SnowFX->SetupAttachment(SceneRoot);
 	SnowFX->bAutoActivate = false;
 
+	DustFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT("DustFX"));
+	DustFX->SetupAttachment(SceneRoot);
+	DustFX->bAutoActivate = false;
+
 	// ── Default presets (Catskills-flavoured). Editable per instance. ────────────
-	//                          cloud   fog    wind   precip  wet    snow
+	//                          cloud   fog    wind   precip  wet    snow   dust
 	auto Add = [this](EWeatherType T, float Cloud, float Fog, float Wind,
-		float Precip, float Wet, float Snow)
+		float Precip, float Wet, float Snow, float Dust)
 	{
 		FWeatherPreset P;
 		P.CloudCoverage = Cloud;
@@ -42,16 +46,22 @@ AWeatherController::AWeatherController()
 		P.Precipitation = Precip;
 		P.Wetness       = Wet;
 		P.Snow          = Snow;
+		P.Dust          = Dust;
 		Presets.Add(T, P);
 	};
 
-	Add(EWeatherType::Clear,        0.10f, 0.010f, 0.10f, 0.0f, 0.0f, 0.0f);
-	Add(EWeatherType::PartlyCloudy, 0.35f, 0.015f, 0.25f, 0.0f, 0.0f, 0.0f);
-	Add(EWeatherType::Overcast,     0.80f, 0.020f, 0.30f, 0.0f, 0.1f, 0.0f);
-	Add(EWeatherType::Foggy,        0.50f, 0.120f, 0.05f, 0.0f, 0.3f, 0.0f);
-	Add(EWeatherType::Rain,         0.90f, 0.030f, 0.45f, 0.7f, 0.9f, 0.0f);
-	Add(EWeatherType::Storm,        1.00f, 0.040f, 0.90f, 1.0f, 1.0f, 0.0f);
-	Add(EWeatherType::Snow,         0.95f, 0.050f, 0.40f, 0.8f, 0.2f, 0.9f);
+	Add(EWeatherType::Clear,        0.10f, 0.010f, 0.10f, 0.0f, 0.0f, 0.0f, 0.0f);
+	Add(EWeatherType::PartlyCloudy, 0.35f, 0.015f, 0.25f, 0.0f, 0.0f, 0.0f, 0.0f);
+	Add(EWeatherType::Overcast,     0.80f, 0.020f, 0.30f, 0.0f, 0.1f, 0.0f, 0.0f);
+	Add(EWeatherType::Foggy,        0.50f, 0.120f, 0.05f, 0.0f, 0.3f, 0.0f, 0.0f);
+	Add(EWeatherType::Rain,         0.90f, 0.030f, 0.45f, 0.7f, 0.9f, 0.0f, 0.0f);
+	Add(EWeatherType::Storm,        1.00f, 0.040f, 0.90f, 1.0f, 1.0f, 0.0f, 0.0f);
+	Add(EWeatherType::Snow,         0.95f, 0.050f, 0.40f, 0.8f, 0.2f, 0.9f, 0.0f);
+	// Severe weather
+	Add(EWeatherType::Supercell,    1.00f, 0.050f, 1.00f, 1.0f, 1.0f, 0.0f, 0.10f);
+	Add(EWeatherType::Blizzard,     1.00f, 0.150f, 1.00f, 1.0f, 0.2f, 1.0f, 0.0f);
+	Add(EWeatherType::Duststorm,    0.40f, 0.300f, 1.00f, 0.0f, 0.0f, 0.0f, 1.00f);
+	Add(EWeatherType::Tornado,      1.00f, 0.100f, 1.00f, 0.8f, 0.8f, 0.0f, 0.60f);
 
 	// Default randomizer weights — Clear common, Storm rare
 	WeatherWeights.Add(EWeatherType::Clear,        4.0f);
@@ -61,6 +71,10 @@ AWeatherController::AWeatherController()
 	WeatherWeights.Add(EWeatherType::Rain,         1.5f);
 	WeatherWeights.Add(EWeatherType::Storm,        0.5f);
 	WeatherWeights.Add(EWeatherType::Snow,         1.0f);
+	WeatherWeights.Add(EWeatherType::Supercell,    0.2f);
+	WeatherWeights.Add(EWeatherType::Blizzard,     0.2f);
+	WeatherWeights.Add(EWeatherType::Duststorm,    0.3f);
+	WeatherWeights.Add(EWeatherType::Tornado,      0.05f);
 }
 
 void AWeatherController::BeginPlay()
@@ -226,6 +240,10 @@ float AWeatherController::SeasonalMultiplier(EWeatherType Type, int32 Month) con
 	case EWeatherType::Rain:  return bSpring ? 2.0f : (bFall ? 1.5f : (bSummer ? 1.2f : 0.5f));
 	case EWeatherType::Clear: return bSummer ? 1.6f : (bWinter ? 0.8f : 1.0f);
 	case EWeatherType::Foggy: return bFall ? 1.8f : (bWinter ? 1.2f : 1.0f);
+	case EWeatherType::Supercell: return bSummer ? 2.0f : 0.3f;
+	case EWeatherType::Blizzard:  return bWinter ? 3.0f : 0.0f;
+	case EWeatherType::Duststorm: return (bSummer || bSpring) ? 1.5f : 0.4f;
+	case EWeatherType::Tornado:   return (bSpring || bSummer) ? 2.0f : 0.1f;
 	default:                  return 1.0f;   // PartlyCloudy, Overcast — neutral year-round
 	}
 }
@@ -259,6 +277,7 @@ void AWeatherController::ApplyToWorld()
 		UKismetMaterialLibrary::SetScalarParameterValue(this, WeatherParams, TEXT("Precipitation"), Current.Precipitation);
 		UKismetMaterialLibrary::SetScalarParameterValue(this, WeatherParams, TEXT("Wetness"),       Current.Wetness);
 		UKismetMaterialLibrary::SetScalarParameterValue(this, WeatherParams, TEXT("Snow"),          SnowAccumulation);
+		UKismetMaterialLibrary::SetScalarParameterValue(this, WeatherParams, TEXT("Dust"),          Current.Dust);
 	}
 }
 
@@ -273,14 +292,13 @@ FWeatherPreset AWeatherController::ResolvePreset(EWeatherType Type) const
 
 bool AWeatherController::IsSnowWeather(EWeatherType Type) const
 {
-	return Type == EWeatherType::Snow;
+	return Type == EWeatherType::Snow || Type == EWeatherType::Blizzard;
 }
 
 void AWeatherController::UpdatePrecipitation()
 {
 	const bool  bSnow = IsSnowWeather(CurrentWeather);
 	const float Rate  = Current.Precipitation;
-	const bool  bWet  = Rate > 0.01f;
 
 	// Horizontal wind velocity, scaled by the current blended strength
 	const FVector Wind = FRotator(0.0f, WindHeadingDeg, 0.0f).Vector()
@@ -303,7 +321,7 @@ void AWeatherController::UpdatePrecipitation()
 		}
 	}
 
-	auto Drive = [&](UNiagaraComponent* FX, bool bShouldRun)
+	auto Drive = [&](UNiagaraComponent* FX, bool bShouldRun, float Amount, FName AmountParam)
 	{
 		if (!FX)
 		{
@@ -313,13 +331,13 @@ void AWeatherController::UpdatePrecipitation()
 		{
 			FX->SetWorldLocation(FollowLoc);
 		}
-		if (bShouldRun && bWet)
+		if (bShouldRun && Amount > 0.01f)
 		{
 			if (!FX->IsActive())
 			{
 				FX->Activate();
 			}
-			FX->SetVariableFloat(PrecipRateParam, Rate);
+			FX->SetVariableFloat(AmountParam, Amount);
 			FX->SetVariableVec3(WindParam, Wind);
 		}
 		else if (FX->IsActive())
@@ -328,6 +346,7 @@ void AWeatherController::UpdatePrecipitation()
 		}
 	};
 
-	Drive(RainFX, !bSnow);
-	Drive(SnowFX,  bSnow);
+	Drive(RainFX, !bSnow, Rate,         PrecipRateParam);
+	Drive(SnowFX,  bSnow, Rate,         PrecipRateParam);
+	Drive(DustFX,  true,  Current.Dust, DustParam);
 }
