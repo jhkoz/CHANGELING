@@ -144,6 +144,13 @@ void AWeatherController::Tick(float DeltaTime)
 	Ease(Current.Wetness,       Target.Wetness);
 	Ease(Current.Snow,          Target.Snow);
 
+	// Snow accumulation: builds while actively snowing, melts otherwise (game-time rates).
+	const bool  bSnowing = IsSnowWeather(CurrentWeather) && Current.Precipitation > 0.01f;
+	const float SnowRate = bSnowing
+		?  TimeStep / FMath::Max(1.0f, SnowAccumulateHours * 3600.0f)
+		: -TimeStep / FMath::Max(1.0f, SnowMeltHours       * 3600.0f);
+	SnowAccumulation = FMath::Clamp(SnowAccumulation + SnowRate, 0.0f, 1.0f);
+
 	ApplyToWorld();
 	UpdatePrecipitation();
 }
@@ -176,10 +183,17 @@ void AWeatherController::RollRandomWeather()
 
 EWeatherType AWeatherController::PickWeightedWeather() const
 {
+	const int32 Month = (bSeasonalWeather && DayNight)
+		? DayNight->CurrentDateTime.GetMonth() : 0;
+	auto Weight = [&](EWeatherType T, float Base) -> float
+	{
+		return FMath::Max(0.0f, Base) * (Month > 0 ? SeasonalMultiplier(T, Month) : 1.0f);
+	};
+
 	float Total = 0.0f;
 	for (const TPair<EWeatherType, float>& W : WeatherWeights)
 	{
-		Total += FMath::Max(0.0f, W.Value);
+		Total += Weight(W.Key, W.Value);
 	}
 	if (Total <= 0.0f)
 	{
@@ -189,13 +203,31 @@ EWeatherType AWeatherController::PickWeightedWeather() const
 	float Roll = FMath::FRandRange(0.0f, Total);
 	for (const TPair<EWeatherType, float>& W : WeatherWeights)
 	{
-		Roll -= FMath::Max(0.0f, W.Value);
+		Roll -= Weight(W.Key, W.Value);
 		if (Roll <= 0.0f)
 		{
 			return W.Key;
 		}
 	}
 	return CurrentWeather;
+}
+
+float AWeatherController::SeasonalMultiplier(EWeatherType Type, int32 Month) const
+{
+	// Northern-hemisphere seasons (Catskills): scale the base weights by time of year.
+	const bool bWinter = (Month == 12 || Month <= 2);
+	const bool bSpring = (Month >= 3 && Month <= 5);
+	const bool bSummer = (Month >= 6 && Month <= 8);
+	const bool bFall   = (Month >= 9 && Month <= 11);
+	switch (Type)
+	{
+	case EWeatherType::Snow:  return bWinter ? 4.0f : ((bSpring || bFall) ? 0.3f : 0.0f);
+	case EWeatherType::Storm: return bSummer ? 2.5f : (bWinter ? 0.3f : 1.0f);
+	case EWeatherType::Rain:  return bSpring ? 2.0f : (bFall ? 1.5f : (bSummer ? 1.2f : 0.5f));
+	case EWeatherType::Clear: return bSummer ? 1.6f : (bWinter ? 0.8f : 1.0f);
+	case EWeatherType::Foggy: return bFall ? 1.8f : (bWinter ? 1.2f : 1.0f);
+	default:                  return 1.0f;   // PartlyCloudy, Overcast — neutral year-round
+	}
 }
 
 //──────────────────────────────────────────────────────────────────────────────
@@ -226,7 +258,7 @@ void AWeatherController::ApplyToWorld()
 		UKismetMaterialLibrary::SetScalarParameterValue(this, WeatherParams, TEXT("WindStrength"),  Current.WindStrength);
 		UKismetMaterialLibrary::SetScalarParameterValue(this, WeatherParams, TEXT("Precipitation"), Current.Precipitation);
 		UKismetMaterialLibrary::SetScalarParameterValue(this, WeatherParams, TEXT("Wetness"),       Current.Wetness);
-		UKismetMaterialLibrary::SetScalarParameterValue(this, WeatherParams, TEXT("Snow"),          Current.Snow);
+		UKismetMaterialLibrary::SetScalarParameterValue(this, WeatherParams, TEXT("Snow"),          SnowAccumulation);
 	}
 }
 

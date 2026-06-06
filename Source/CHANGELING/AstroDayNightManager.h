@@ -18,6 +18,8 @@
 
 class UMaterialInstanceDynamic;
 class UTextureRenderTarget2D;
+class AWeatherController;
+class AExponentialHeightFog;
 
 // ── Delegates ─────────────────────────────────────────────────────────────────
 
@@ -172,6 +174,27 @@ public:
 	/** How much a full, high moon lifts the night SkyLight ambient (0 = moon doesn't brighten it) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Sky", meta = (ClampMin = "0.0"))
 	float MoonAmbientBoost = 0.3f;
+
+	/** WeatherController whose cloud cover dims the sun/moon. Auto-found if left empty. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Sky")
+	AWeatherController* Weather;
+
+	/** How much full overcast dims the sun and moon (0.85 → overcast cuts them to ~15%). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Sky", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float CloudDimStrength = 0.85f;
+
+	/** ExponentialHeightFog whose volumetric fog glows at night for ambient visibility.
+	 *  Auto-found if empty. (Enable Volumetric Fog on the fog actor for this to show.) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Sky")
+	AExponentialHeightFog* HeightFog;
+
+	/** Colour of the night fog glow — a dim ambient lift before the moon rises. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Sky")
+	FLinearColor NightFogGlow = FLinearColor(0.4f, 0.5f, 0.8f);
+
+	/** Brightness of the night fog glow (0 = off). Driven up at night, off by day. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Sky", meta = (ClampMin = "0.0"))
+	float NightFogGlowScale = 0.1f;
 
 	//──────────────────────────────────────────────────────────────
 	// Stars
@@ -377,6 +400,7 @@ private:
 	float        ComputeSunIntensity()  const;
 	FLinearColor ComputeSunColor()      const;
 	float        HorizonSizeFactor(float ElevationDeg) const;
+	float        CloudDimFactor()       const;
 	FVector      GetObserverLocation()  const;
 
 	//──────────────────────────────────────────────────────────────

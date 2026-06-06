@@ -15,6 +15,10 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "Misc/Paths.h"
 #include "StarCatalog.h"
+#include "WeatherController.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Components/ExponentialHeightFogComponent.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Convenience: degrees ↔ radians
@@ -91,7 +95,7 @@ AAstroDayNightManager::AAstroDayNightManager()
 	StarDome->bAffectDynamicIndirectLighting  = false;
 	StarDome->SetVisibility(false);   // shown only at night
 
-	CurrentDateTime = FDateTime(2024, 6, 21, 12, 0, 0);
+	CurrentDateTime = FDateTime(2020, 3, 21, 12, 0, 0);   // spring equinox 2020
 }
 
 //──────────────────────────────────────────────────────────────────────────────
@@ -122,6 +126,20 @@ void AAstroDayNightManager::BeginPlay()
 		SunLight  ? TEXT("OK") : TEXT("NULL"),
 		MoonLight ? TEXT("OK") : TEXT("NULL"),
 		MoonMesh  ? TEXT("OK") : TEXT("NULL"));
+
+	// Link to the weather so heavy cloud can dim the sun and moon.
+	if (!Weather)
+	{
+		Weather = Cast<AWeatherController>(
+			UGameplayStatics::GetActorOfClass(this, AWeatherController::StaticClass()));
+	}
+
+	// Auto-find the height fog for the night glow.
+	if (!HeightFog)
+	{
+		HeightFog = Cast<AExponentialHeightFog>(
+			UGameplayStatics::GetActorOfClass(this, AExponentialHeightFog::StaticClass()));
+	}
 
 	// Dynamic material instance lets us fade the stars in and out at runtime
 	if (StarDome && StarDome->GetMaterial(0))
@@ -239,7 +257,7 @@ void AAstroDayNightManager::UpdateSun()
 	// that orients the light correctly. Negating it inverts day/night (bright sky at
 	// midnight), which is the bug we were chasing.
 	const FRotator SunRotation(CachedSunData.CorrectedElevation, CachedSunData.Azimuth, 0.0f);
-	const float Intensity = ComputeSunIntensity();
+	const float Intensity = ComputeSunIntensity() * CloudDimFactor();
 
 	if (TrueCorrectedElevation < -18.0f)
 	{
@@ -291,6 +309,13 @@ float AAstroDayNightManager::HorizonSizeFactor(float ElevationDeg) const
 	if (HorizonBoostFadeDeg <= 0.0f) return 1.0f;
 	const float T = FMath::Clamp(ElevationDeg / HorizonBoostFadeDeg, 0.0f, 1.0f);
 	return FMath::Lerp(HorizonSizeBoost, 1.0f, T);
+}
+
+float AAstroDayNightManager::CloudDimFactor() const
+{
+	// Heavy overcast hides the sun/moon: cut their direct light by the live cloud cover.
+	const float Cover = Weather ? Weather->Current.CloudCoverage : 0.0f;
+	return FMath::Clamp(1.0f - Cover * CloudDimStrength, 0.0f, 1.0f);
 }
 
 //──────────────────────────────────────────────────────────────────────────────
@@ -353,8 +378,9 @@ void AAstroDayNightManager::UpdateMoon()
 	// Illuminance on the ground ∝ sin(altitude); zero at / below the horizon.
 	const float ElevationFactor = FMath::Clamp(
 		FMath::Sin(FMath::DegreesToRadians(CorrectedAlt)), 0.0f, 1.0f);
-	MoonLight->SetIntensity(MoonMaxIntensity * PhaseFactor * ElevationFactor);
-	MoonIllumination = PhaseFactor * ElevationFactor;   // shared with the night ambient
+	const float CloudDim = CloudDimFactor();
+	MoonLight->SetIntensity(MoonMaxIntensity * PhaseFactor * ElevationFactor * CloudDim);
+	MoonIllumination = PhaseFactor * ElevationFactor * CloudDim;   // shared with the night ambient
 
 	// Warm the moonlight as it sinks toward the horizon (atmospheric reddening — the
 	// "harvest moon"); cool blue-white when high overhead.
@@ -724,6 +750,16 @@ void AAstroDayNightManager::UpdateSkyLight()
 		// doesn't glow blue independently of the sun position
 		SkyAtmosphere->RayleighScatteringScale = FMath::Lerp(0.002f, 0.0331f, T);
 		SkyAtmosphere->MarkRenderStateDirty();
+	}
+
+	// Night fog glow — a dim emissive in the volumetric fog for ground-level night
+	// visibility before the moon is up. Fades out during the day.
+	if (HeightFog)
+	{
+		if (UExponentialHeightFogComponent* FogComp = HeightFog->GetComponent())
+		{
+			FogComp->SetVolumetricFogEmissive(NightFogGlow * (NightFogGlowScale * (1.0f - T)));
+		}
 	}
 }
 

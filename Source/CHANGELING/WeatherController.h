@@ -166,6 +166,19 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weather|State")
 	float TimeUntilNextRoll = 0.0f;
 
+	/** Built-up snow on the ground [0,1] — accumulates while snowing, melts otherwise.
+	 *  Written to the MPC "Snow"; drive your surface snow material from it. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weather|State")
+	float SnowAccumulation = 0.0f;
+
+	/** Game-hours of active snowfall to build up to full snow cover. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather", meta = (ClampMin = "0.01"))
+	float SnowAccumulateHours = 2.0f;
+
+	/** Game-hours for accumulated snow to fully melt once it stops snowing. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather", meta = (ClampMin = "0.01"))
+	float SnowMeltHours = 8.0f;
+
 	//──────────────────────────────────────────────────────────────
 	// Events
 	//──────────────────────────────────────────────────────────────
@@ -208,6 +221,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Randomizer")
 	TMap<EWeatherType, float> WeatherWeights;
 
+	/** Shape the weights by season from DayNight's date (snow in winter, storms in summer…). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Randomizer")
+	bool bSeasonalWeather = true;
+
 	/** Immediately roll a new weighted-random weather and reset the timer. */
 	UFUNCTION(BlueprintCallable, Category = "Weather|Randomizer")
 	void RollRandomWeather();
@@ -247,6 +264,7 @@ private:
 	FWeatherPreset ResolvePreset(EWeatherType Type) const;
 	EWeatherType   PickWeightedWeather() const;  // weighted random selection
 	bool           IsSnowWeather(EWeatherType Type) const;
+	float          SeasonalMultiplier(EWeatherType Type, int32 Month) const;
 
 	UPROPERTY(Transient)
 	UMaterialInstanceDynamic* CloudMID = nullptr;
