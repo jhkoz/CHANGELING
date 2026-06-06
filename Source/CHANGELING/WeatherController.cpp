@@ -8,10 +8,27 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Kismet/KismetMaterialLibrary.h"
 #include "Kismet/GameplayStatics.h"
+#include "NiagaraComponent.h"
+#include "Camera/PlayerCameraManager.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/World.h"
+#include "AstroDayNightManager.h"
 
 AWeatherController::AWeatherController()
 {
 	PrimaryActorTick.bCanEverTick = true;
+
+	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+	SetRootComponent(SceneRoot);
+
+	// Camera-following precipitation emitters (assign Niagara Systems in the editor).
+	RainFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT("RainFX"));
+	RainFX->SetupAttachment(SceneRoot);
+	RainFX->bAutoActivate = false;
+
+	SnowFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT("SnowFX"));
+	SnowFX->SetupAttachment(SceneRoot);
+	SnowFX->bAutoActivate = false;
 
 	// ── Default presets (Catskills-flavoured). Editable per instance. ────────────
 	//                          cloud   fog    wind   precip  wet    snow
@@ -77,6 +94,13 @@ void AWeatherController::BeginPlay()
 		}
 	}
 
+	// Weather clock source — share the day/night TimeScale so weather tracks game time.
+	if (!DayNight)
+	{
+		DayNight = Cast<AAstroDayNightManager>(
+			UGameplayStatics::GetActorOfClass(this, AAstroDayNightManager::StaticClass()));
+	}
+
 	CurrentWeather = StartingWeather;
 	Current = ResolvePreset(CurrentWeather);
 	Target  = Current;
@@ -91,10 +115,16 @@ void AWeatherController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Weather clock: scale by the day/night TimeScale so a "front" lasts a sensible number
+	// of game hours no matter how fast time is running. (The visual blend below stays on
+	// real DeltaTime so transitions don't pop instantly at high TimeScale.)
+	const float TimeStep = DeltaTime *
+		((bUseGameTime && DayNight) ? FMath::Max(0.0f, DayNight->TimeScale) : 1.0f);
+
 	// Randomizer — roll a new weather when the hold timer runs out
 	if (bRandomizeWeather)
 	{
-		TimeUntilNextRoll -= DeltaTime;
+		TimeUntilNextRoll -= TimeStep;
 		if (TimeUntilNextRoll <= 0.0f)
 		{
 			RollRandomWeather();
@@ -114,6 +144,7 @@ void AWeatherController::Tick(float DeltaTime)
 	Ease(Current.Snow,          Target.Snow);
 
 	ApplyToWorld();
+	UpdatePrecipitation();
 }
 
 void AWeatherController::SetWeather(EWeatherType NewWeather)
@@ -205,4 +236,65 @@ FWeatherPreset AWeatherController::ResolvePreset(EWeatherType Type) const
 		return *P;
 	}
 	return FWeatherPreset();
+}
+
+bool AWeatherController::IsSnowWeather(EWeatherType Type) const
+{
+	return Type == EWeatherType::Snow;
+}
+
+void AWeatherController::UpdatePrecipitation()
+{
+	const bool  bSnow = IsSnowWeather(CurrentWeather);
+	const float Rate  = Current.Precipitation;
+	const bool  bWet  = Rate > 0.01f;
+
+	// Horizontal wind velocity, scaled by the current blended strength
+	const FVector Wind = FRotator(0.0f, WindHeadingDeg, 0.0f).Vector()
+		* (MaxWindSpeed * Current.WindStrength);
+
+	// Park the emitters on the camera so weather surrounds the viewer
+	FVector FollowLoc = GetActorLocation();
+	if (bPrecipFollowCamera)
+	{
+		if (const UWorld* W = GetWorld())
+		{
+			if (const APlayerController* PC = W->GetFirstPlayerController())
+			{
+				if (PC->PlayerCameraManager)
+				{
+					FollowLoc = PC->PlayerCameraManager->GetCameraLocation()
+						+ FVector(0.0f, 0.0f, PrecipCameraHeight);
+				}
+			}
+		}
+	}
+
+	auto Drive = [&](UNiagaraComponent* FX, bool bShouldRun)
+	{
+		if (!FX)
+		{
+			return;
+		}
+		if (bPrecipFollowCamera)
+		{
+			FX->SetWorldLocation(FollowLoc);
+		}
+		if (bShouldRun && bWet)
+		{
+			if (!FX->IsActive())
+			{
+				FX->Activate();
+			}
+			FX->SetVariableFloat(PrecipRateParam, Rate);
+			FX->SetVariableVec3(WindParam, Wind);
+		}
+		else if (FX->IsActive())
+		{
+			FX->Deactivate();   // stop spawning; let existing particles fall out
+		}
+	};
+
+	Drive(RainFX, !bSnow);
+	Drive(SnowFX,  bSnow);
 }

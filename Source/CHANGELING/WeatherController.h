@@ -20,6 +20,9 @@ class AExponentialHeightFog;
 class AVolumetricCloud;
 class UMaterialParameterCollection;
 class UMaterialInstanceDynamic;
+class UNiagaraComponent;
+class USceneComponent;
+class AAstroDayNightManager;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -85,6 +88,21 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	//──────────────────────────────────────────────────────────────
+	// Components
+	//──────────────────────────────────────────────────────────────
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weather|FX")
+	USceneComponent* SceneRoot;
+
+	/** Camera-following rain emitter. Assign your rain Niagara System on this component. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weather|FX")
+	UNiagaraComponent* RainFX;
+
+	/** Camera-following snow emitter. Assign your snow Niagara System on this component. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weather|FX")
+	UNiagaraComponent* SnowFX;
+
+	//──────────────────────────────────────────────────────────────
 	// References
 	//──────────────────────────────────────────────────────────────
 
@@ -106,6 +124,15 @@ public:
 	 *  Read these in your cloud material + surface materials. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|References")
 	UMaterialParameterCollection* WeatherParams;
+
+	/** Day/night manager whose TimeScale drives the weather clock. Auto-found if left empty. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|References")
+	AAstroDayNightManager* DayNight;
+
+	/** Run the randomizer on game time (hold durations scaled by DayNight's TimeScale).
+	 *  Off = real-time seconds. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|References")
+	bool bUseGameTime = true;
 
 	//──────────────────────────────────────────────────────────────
 	// Config
@@ -166,13 +193,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Randomizer")
 	bool bRandomizeWeather = false;
 
-	/** Shortest a weather holds before the next roll (seconds). */
+	/** Shortest a weather holds before the next roll. Game-seconds when Use Game Time is on
+	 *  (≈1 game hour default), else real-seconds. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Randomizer", meta = (ClampMin = "1.0"))
-	float MinWeatherDuration = 60.0f;
+	float MinWeatherDuration = 3600.0f;
 
-	/** Longest a weather holds before the next roll (seconds). */
+	/** Longest a weather holds before the next roll. Game-seconds when Use Game Time is on
+	 *  (≈4 game hours default), else real-seconds. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Randomizer", meta = (ClampMin = "1.0"))
-	float MaxWeatherDuration = 240.0f;
+	float MaxWeatherDuration = 14400.0f;
 
 	/** Relative likelihood of each type when rolling (higher = more common). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Randomizer")
@@ -182,11 +211,41 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weather|Randomizer")
 	void RollRandomWeather();
 
+	//──────────────────────────────────────────────────────────────
+	// Precipitation FX
+	//──────────────────────────────────────────────────────────────
+
+	/** Park the rain/snow emitters on the camera so weather surrounds the viewer. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|FX")
+	bool bPrecipFollowCamera = true;
+
+	/** Vertical offset of the emitter above the camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|FX")
+	float PrecipCameraHeight = 0.0f;
+
+	/** Niagara User *float* param fed Current.Precipitation (0–1). Drive your spawn rate from it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|FX")
+	FName PrecipRateParam = "Precipitation";
+
+	/** Niagara User *vector* param fed the wind velocity. Drive precipitation slant from it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|FX")
+	FName WindParam = "Wind";
+
+	/** Compass heading the wind blows toward (degrees). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|FX")
+	float WindHeadingDeg = 90.0f;
+
+	/** Wind speed (cm/s) at WindStrength = 1, handed to WindParam. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|FX", meta = (ClampMin = "0.0"))
+	float MaxWindSpeed = 800.0f;
+
 private:
 	FWeatherPreset Target;                       // preset we're blending toward
 	void ApplyToWorld();                         // push Current to fog + cloud + MPC
+	void UpdatePrecipitation();                  // drive + park the rain/snow emitters
 	FWeatherPreset ResolvePreset(EWeatherType Type) const;
 	EWeatherType   PickWeightedWeather() const;  // weighted random selection
+	bool           IsSnowWeather(EWeatherType Type) const;
 
 	UPROPERTY(Transient)
 	UMaterialInstanceDynamic* CloudMID = nullptr;

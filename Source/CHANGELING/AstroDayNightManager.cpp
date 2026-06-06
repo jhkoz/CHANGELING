@@ -335,9 +335,13 @@ void AAstroDayNightManager::UpdateMoon()
 	// Illuminated fraction (smooth, geometric): 0 at new moon → 1 at full.
 	const float SinHalf = FMath::Sin(PI * MoonPhase);
 	const float Illum   = SinHalf * SinHalf;                 // sin²(π·phase) = (1−cos)/2
-	// Photometric non-linearity: a full moon is ~12× a quarter, so a quarter must read
-	// far dimmer than "half". Squaring the fraction pulls the quarters down (≈0.25, not 0.5).
-	const float PhaseFactor     = Illum * Illum;
+	// Real lunar photometric curve (Schaefer): a quarter moon is ~2.6 mag fainter than full,
+	// so only ~9% as bright (not the ~25% squaring gives). Phase angle a = acos(2*Illum-1);
+	// dimmer-than-full magnitude dm = 0.026*a + 4e-9*a^4; factor = 10^(-0.4*dm).
+	const float Alpha       = FMath::RadiansToDegrees(
+		FMath::Acos(FMath::Clamp(2.0f * Illum - 1.0f, -1.0f, 1.0f)));
+	const float MagDelta    = 0.026f * Alpha + 4.0e-9f * Alpha * Alpha * Alpha * Alpha;
+	const float PhaseFactor = FMath::Pow(10.0f, -0.4f * MagDelta);
 	// Illuminance on the ground ∝ sin(altitude); zero at / below the horizon.
 	const float ElevationFactor = FMath::Clamp(
 		FMath::Sin(FMath::DegreesToRadians(CorrectedAlt)), 0.0f, 1.0f);
@@ -640,8 +644,11 @@ double AAstroDayNightManager::ComputeJulianDate() const
 	          + Yr/4 - Yr/100 + Yr/400
 	          - 32045;
 
-	// Fractional day (JD epoch is noon UT, hence -12h)
-	JD += (H - 12.0) / 24.0 + Mi / 1440.0 + S / 86400.0;
+	// CurrentDateTime is the *local* clock, but the Julian Date must be in UT — subtract
+	// the effective UTC offset (time zone + DST) before applying the noon-UT epoch (-12h).
+	// Without this, the moon and stars ran (TimeZone + DST) hours off from the sun.
+	const double UtcOffsetHours = static_cast<double>(TimeZone) + (bDaylightSaving ? 1.0 : 0.0);
+	JD += (H - 12.0 - UtcOffsetHours) / 24.0 + Mi / 1440.0 + S / 86400.0;
 	return JD;
 }
 
