@@ -9,6 +9,9 @@
 #include "Kismet/KismetMaterialLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "Components/DirectionalLightComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
@@ -33,6 +36,12 @@ AWeatherController::AWeatherController()
 	DustFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT("DustFX"));
 	DustFX->SetupAttachment(SceneRoot);
 	DustFX->bAutoActivate = false;
+
+	LightningLight = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("LightningLight"));
+	LightningLight->SetupAttachment(SceneRoot);
+	LightningLight->bAtmosphereSunLight = false;
+	LightningLight->SetCastShadows(false);
+	LightningLight->SetIntensity(0.0f);
 
 	// ── Default presets (Catskills-flavoured). Editable per instance. ────────────
 	//                          cloud   fog    wind   precip  wet    snow   dust
@@ -62,6 +71,7 @@ AWeatherController::AWeatherController()
 	Add(EWeatherType::Blizzard,     1.00f, 0.150f, 1.00f, 1.0f, 0.2f, 1.0f, 0.0f);
 	Add(EWeatherType::Duststorm,    0.40f, 0.300f, 1.00f, 0.0f, 0.0f, 0.0f, 1.00f);
 	Add(EWeatherType::Tornado,      1.00f, 0.100f, 1.00f, 0.8f, 0.8f, 0.0f, 0.60f);
+	Add(EWeatherType::LightningStorm, 0.90f, 0.030f, 0.60f, 0.3f, 0.4f, 0.0f, 0.0f);
 
 	// Default randomizer weights — Clear common, Storm rare
 	WeatherWeights.Add(EWeatherType::Clear,        4.0f);
@@ -75,6 +85,7 @@ AWeatherController::AWeatherController()
 	WeatherWeights.Add(EWeatherType::Blizzard,     0.2f);
 	WeatherWeights.Add(EWeatherType::Duststorm,    0.3f);
 	WeatherWeights.Add(EWeatherType::Tornado,      0.05f);
+	WeatherWeights.Add(EWeatherType::LightningStorm, 0.4f);
 }
 
 void AWeatherController::BeginPlay()
@@ -167,6 +178,7 @@ void AWeatherController::Tick(float DeltaTime)
 
 	ApplyToWorld();
 	UpdatePrecipitation();
+	UpdateLightning(DeltaTime);
 }
 
 void AWeatherController::SetWeather(EWeatherType NewWeather)
@@ -244,6 +256,7 @@ float AWeatherController::SeasonalMultiplier(EWeatherType Type, int32 Month) con
 	case EWeatherType::Blizzard:  return bWinter ? 3.0f : 0.0f;
 	case EWeatherType::Duststorm: return (bSummer || bSpring) ? 1.5f : 0.4f;
 	case EWeatherType::Tornado:   return (bSpring || bSummer) ? 2.0f : 0.1f;
+	case EWeatherType::LightningStorm: return bSummer ? 2.5f : (bSpring ? 1.0f : 0.2f);
 	default:                  return 1.0f;   // PartlyCloudy, Overcast — neutral year-round
 	}
 }
@@ -349,4 +362,85 @@ void AWeatherController::UpdatePrecipitation()
 	Drive(RainFX, !bSnow, Rate,         PrecipRateParam);
 	Drive(SnowFX,  bSnow, Rate,         PrecipRateParam);
 	Drive(DustFX,  true,  Current.Dust, DustParam);
+}
+
+float AWeatherController::LightningAmount(EWeatherType Type) const
+{
+	switch (Type)
+	{
+	case EWeatherType::Supercell:      return 1.0f;
+	case EWeatherType::LightningStorm: return 1.0f;
+	case EWeatherType::Tornado:        return 0.8f;
+	case EWeatherType::Storm:          return 0.6f;
+	default:                           return 0.0f;
+	}
+}
+
+void AWeatherController::UpdateLightning(float DeltaTime)
+{
+	if (!LightningLight)
+	{
+		return;
+	}
+
+	// Active flash: decay + flicker, then snap off. Runs on real time (no strobe at high TimeScale).
+	if (FlashTimeLeft > 0.0f)
+	{
+		FlashTimeLeft -= DeltaTime;
+		const float Env     = FMath::Clamp(FlashTimeLeft / FMath::Max(0.01f, LightningFlashDuration), 0.0f, 1.0f);
+		const float Flicker = 0.5f + 0.5f * FMath::FRand();
+		LightningLight->SetIntensity(FlashTimeLeft > 0.0f ? LightningPeakIntensity * Env * Flicker : 0.0f);
+		return;
+	}
+
+	const float Amount = LightningAmount(CurrentWeather);
+	if (Amount <= 0.01f)
+	{
+		LightningTimer = 0.0f;
+		return;
+	}
+
+	LightningTimer -= DeltaTime;
+	if (LightningTimer <= 0.0f)
+	{
+		// Strike: random direction from above, kick off the flash, fire the event.
+		const float Az    = FMath::FRandRange(0.0f, 360.0f);
+		const float Pitch = FMath::FRandRange(-65.0f, -25.0f);
+		LightningLight->SetWorldRotation(FRotator(Pitch, Az, 0.0f));
+		LightningLight->SetLightColor(LightningColor);
+		FlashTimeLeft = LightningFlashDuration;
+		OnLightning.Broadcast();
+
+		// Visible bolt: a forking beam crawling the cloud layer near the viewer.
+		if (BoltSystem)
+		{
+			const FVector V = ViewLocation();
+			const FVector Start(V.X + FMath::FRandRange(-BoltSpread, BoltSpread),
+			                    V.Y + FMath::FRandRange(-BoltSpread, BoltSpread), BoltAltitude);
+			const FVector End  (V.X + FMath::FRandRange(-BoltSpread, BoltSpread),
+			                    V.Y + FMath::FRandRange(-BoltSpread, BoltSpread), BoltAltitude);
+			if (UNiagaraComponent* Bolt = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+				GetWorld(), BoltSystem, Start))
+			{
+				Bolt->SetVariableVec3(BoltEndParam, End);
+			}
+		}
+
+		LightningTimer = FMath::FRandRange(LightningMinInterval, LightningMaxInterval) / Amount;
+	}
+}
+
+FVector AWeatherController::ViewLocation() const
+{
+	if (const UWorld* W = GetWorld())
+	{
+		if (const APlayerController* PC = W->GetFirstPlayerController())
+		{
+			if (PC->PlayerCameraManager)
+			{
+				return PC->PlayerCameraManager->GetCameraLocation();
+			}
+		}
+	}
+	return GetActorLocation();
 }

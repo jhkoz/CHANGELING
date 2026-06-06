@@ -23,6 +23,8 @@ class UMaterialInstanceDynamic;
 class UNiagaraComponent;
 class USceneComponent;
 class AAstroDayNightManager;
+class UDirectionalLightComponent;
+class UNiagaraSystem;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -39,7 +41,8 @@ enum class EWeatherType : uint8
 	Supercell     UMETA(DisplayName = "Supercell"),
 	Blizzard      UMETA(DisplayName = "Blizzard"),
 	Duststorm     UMETA(DisplayName = "Dust Storm"),
-	Tornado       UMETA(DisplayName = "Tornado")
+	Tornado       UMETA(DisplayName = "Tornado"),
+	LightningStorm UMETA(DisplayName = "Lightning Storm")
 };
 
 /** Target conditions for a single weather type. All 0–1 except fog density. */
@@ -78,6 +81,7 @@ struct FWeatherPreset
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeatherChanged, EWeatherType, NewWeather);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLightning);
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -113,6 +117,10 @@ public:
 	/** Camera-following dust emitter for wind/dust storms. Assign a dust Niagara System. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weather|FX")
 	UNiagaraComponent* DustFX;
+
+	/** Flash light that strobes during electrical storms. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weather|FX")
+	UDirectionalLightComponent* LightningLight;
 
 	//──────────────────────────────────────────────────────────────
 	// References
@@ -199,6 +207,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Weather|Events")
 	FOnWeatherChanged OnWeatherChanged;
 
+	/** Fires on each lightning strike — hook thunder SFX + a bolt VFX. */
+	UPROPERTY(BlueprintAssignable, Category = "Weather|Events")
+	FOnLightning OnLightning;
+
 	//──────────────────────────────────────────────────────────────
 	// API
 	//──────────────────────────────────────────────────────────────
@@ -273,6 +285,47 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|FX", meta = (ClampMin = "0.0"))
 	float MaxWindSpeed = 800.0f;
 
+	//──────────────────────────────────────────────────────────────
+	// Lightning
+	//──────────────────────────────────────────────────────────────
+
+	/** Colour of the lightning flash. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Lightning")
+	FLinearColor LightningColor = FLinearColor(0.85f, 0.90f, 1.0f);
+
+	/** Peak brightness of a flash. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Lightning", meta = (ClampMin = "0.0"))
+	float LightningPeakIntensity = 8.0f;
+
+	/** Shortest real-seconds between strikes at full lightning (scaled by 1/amount). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Lightning", meta = (ClampMin = "0.1"))
+	float LightningMinInterval = 4.0f;
+
+	/** Longest real-seconds between strikes at full lightning (scaled by 1/amount). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Lightning", meta = (ClampMin = "0.1"))
+	float LightningMaxInterval = 14.0f;
+
+	/** How long a single flash lasts (seconds). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Lightning", meta = (ClampMin = "0.01"))
+	float LightningFlashDuration = 0.22f;
+
+	/** Niagara bolt spawned on each strike — a forking beam crawling the cloud layer.
+	 *  Build it to draw from its spawn point to a vector User param (BoltEndParam). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Lightning")
+	UNiagaraSystem* BoltSystem;
+
+	/** World-Z height (cm) the bolts crawl along — set this to your cloud deck height. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Lightning")
+	float BoltAltitude = 60000.0f;
+
+	/** Horizontal spread (cm) of bolt endpoints around the viewer. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Lightning", meta = (ClampMin = "0.0"))
+	float BoltSpread = 60000.0f;
+
+	/** Niagara *vector* User param fed the bolt's end point. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather|Lightning")
+	FName BoltEndParam = "BoltEnd";
+
 private:
 	FWeatherPreset Target;                       // preset we're blending toward
 	void ApplyToWorld();                         // push Current to fog + cloud + MPC
@@ -281,6 +334,12 @@ private:
 	EWeatherType   PickWeightedWeather() const;  // weighted random selection
 	bool           IsSnowWeather(EWeatherType Type) const;
 	float          SeasonalMultiplier(EWeatherType Type, int32 Month) const;
+	void           UpdateLightning(float DeltaTime);
+	float          LightningAmount(EWeatherType Type) const;
+	FVector        ViewLocation() const;
+
+	float LightningTimer = 0.0f;   // countdown to the next strike
+	float FlashTimeLeft  = 0.0f;   // remaining time of the active flash
 
 	UPROPERTY(Transient)
 	UMaterialInstanceDynamic* CloudMID = nullptr;
