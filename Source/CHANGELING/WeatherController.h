@@ -145,9 +145,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather")
 	EWeatherType StartingWeather = EWeatherType::Clear;
 
-	/** How fast conditions blend toward the target (higher = quicker). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather", meta = (ClampMin = "0.01"))
-	float TransitionSpeed = 1.0f;
+	/** How fast conditions blend toward the target. With Use Game Time on, this is in
+	 *  game-time units — 0.02 ≈ a 2–3 game-minute blend. Higher = quicker. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather", meta = (ClampMin = "0.001"))
+	float TransitionSpeed = 0.02f;
 
 	//──────────────────────────────────────────────────────────────
 	// Live state (read-only)

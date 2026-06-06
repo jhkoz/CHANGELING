@@ -253,7 +253,7 @@ void AAstroDayNightManager::UpdateSun()
 		SunLight->SetWorldRotation(SunRotation);
 		SunLight->SetIntensity(Intensity);
 		SunLight->SetLightColor(ComputeSunColor() * SunDiscColor);
-		SunLight->LightSourceAngle = SunDiscAngle;
+		SunLight->LightSourceAngle = SunDiscAngle * HorizonSizeFactor(SunElevation);
 	}
 
 	const bool bNowDay = CachedSunData.CorrectedElevation > 0.0f;
@@ -283,6 +283,14 @@ FLinearColor AAstroDayNightManager::ComputeSunColor() const
 	const FLinearColor Horizon(1.0f, 0.45f, 0.1f);
 	const FLinearColor Zenith (1.0f, 0.97f, 0.92f);
 	return FLinearColor::LerpUsingHSV(Horizon, Zenith, T);
+}
+
+float AAstroDayNightManager::HorizonSizeFactor(float ElevationDeg) const
+{
+	// Fakes the Moon Illusion: full boost at the horizon, fading to 1 as the body climbs.
+	if (HorizonBoostFadeDeg <= 0.0f) return 1.0f;
+	const float T = FMath::Clamp(ElevationDeg / HorizonBoostFadeDeg, 0.0f, 1.0f);
+	return FMath::Lerp(HorizonSizeBoost, 1.0f, T);
 }
 
 //──────────────────────────────────────────────────────────────────────────────
@@ -384,7 +392,7 @@ void AAstroDayNightManager::UpdateMoon()
 
 		// Subtle size variation: ~7% larger at perigee vs apogee (384400 km mean)
 		const float SizeFactor = 384400.0f / FMath::Max(MoonDistanceKm, 356500.0f);
-		MoonMesh->SetWorldScale3D(FVector(MoonMeshScale * SizeFactor));
+		MoonMesh->SetWorldScale3D(FVector(MoonMeshScale * SizeFactor * HorizonSizeFactor(CorrectedAlt)));
 		MoonMesh->SetVisibility(CorrectedAlt > -5.0f);
 
 		// Feed the sun's world direction to the moon material so it can light the
@@ -694,7 +702,9 @@ void AAstroDayNightManager::UpdateSkyLight()
 	// independent of the moon. Aimed along the camera so whatever you look at is lifted.
 	if (NightFillLight)
 	{
-		NightFillLight->SetIntensity(NightFillIntensity * (1.0f - T));
+		// Fade the fill out as the moon takes over — full before moonrise / on moonless
+		// nights, gone under a bright high moon. It's purely the no-moon visibility backup.
+		NightFillLight->SetIntensity(NightFillIntensity * (1.0f - T) * (1.0f - MoonIllumination));
 		NightFillLight->SetLightColor(NightFillColor);
 		if (const UWorld* W = GetWorld())
 		{

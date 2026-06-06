@@ -131,10 +131,11 @@ void AWeatherController::Tick(float DeltaTime)
 		}
 	}
 
-	// Smoothly ease each field toward the target preset
+	// Smoothly ease each field toward the target — on the same game-time step as the
+	// randomizer so the whole weather system runs off one clock.
 	auto Ease = [&](float& Cur, float Tgt)
 	{
-		Cur = FMath::FInterpTo(Cur, Tgt, DeltaTime, TransitionSpeed);
+		Cur = FMath::FInterpTo(Cur, Tgt, TimeStep, TransitionSpeed);
 	};
 	Ease(Current.CloudCoverage, Target.CloudCoverage);
 	Ease(Current.FogDensity,    Target.FogDensity);
