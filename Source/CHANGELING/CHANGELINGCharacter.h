@@ -49,6 +49,20 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* MouseLookAction;
 
+	/** Toggle Walk/Run Input Action */
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* ToggleWalkRunAction;
+
+
+	/** Speed Variables */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Movement")
+	float MaxRunSpeed = 500.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+	float MaxWalkSpeed = 200.0f;
+
+	/** State Variables */
+	bool bIsWalking = false;
 public:
 
 	/** Constructor */
@@ -66,6 +80,9 @@ protected:
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
+
+	/** Called to toggle Running */
+	void ToggleWalkRun();
 
 public:
 

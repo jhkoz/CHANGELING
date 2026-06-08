@@ -65,6 +65,9 @@ void ACHANGELINGCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ACHANGELINGCharacter::Look);
+
+		// Toggle Walk/Run
+		EnhancedInputComponent->BindAction(ToggleWalkRunAction, ETriggerEvent::Triggered, this, &ACHANGELINGCharacter::ToggleWalkRun);
 	}
 	else
 	{
@@ -88,6 +91,25 @@ void ACHANGELINGCharacter::Look(const FInputActionValue& Value)
 
 	// route the input
 	DoLook(LookAxisVector.X, LookAxisVector.Y);
+}
+
+void ACHANGELINGCharacter::ToggleWalkRun()
+{
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	if (!MoveComp) return;
+
+	if (bIsWalking)
+	{
+		//Switch to Running
+		MoveComp->MaxWalkSpeed = MaxRunSpeed;
+		bIsWalking = false;
+	}
+	else
+	{
+		//Switch to Walking
+		MoveComp->MaxWalkSpeed = MaxWalkSpeed;
+		bIsWalking = true;
+	}
 }
 
 void ACHANGELINGCharacter::DoMove(float Right, float Forward)
