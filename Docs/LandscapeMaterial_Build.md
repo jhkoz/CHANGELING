@@ -7,7 +7,7 @@ Builds the whole stack: 5 paintable biomes (2 textures each) over a height‑awa
 2. `MF_AutoFadeZ`      — height mask (no deps)
 3. `MF_DistanceBlend`  — near/far lerp (no deps)
 4. `MF_TextureBombing` — anti‑tiling sampler (no deps)
-5. `MF_BiomeLayer`     — one layer → BaseColor/Normal/Roughness/AO (uses 3 & 4)
+5. `MF_BiomeLayer`     — two albedos blended → one layer's attributes (uses 3 & 4)
 6. `MF_BiomeHub`       — riverbed composite (optional wrapper)
 7. `M_MasterLandscape` — assembles 6 layers
 8. `MI_MasterLandscape`— per‑texture instance
@@ -19,9 +19,8 @@ Conventions: *Add a node* = right‑click the graph and search. **Param** = a Pa
 
 ## 1. Textures & folders
 - Folder: `Content/_Custom/Landscape/{Functions, Materials, Textures}`.
-- Per layer, two textures:
-  - **BaseColor** — sRGB **on**. (Optional: pack **Roughness in the Alpha**.)
-  - **Normal** — Compression **Normalmap**, sRGB **off**. (Optional: pack **AO in the Alpha**.)
+- Per layer, **two base‑color (albedo) textures** that blend for variation — sRGB **on**. *(Optional: pack Roughness in an Alpha.)*
+- *(Optional, shared across layers)* a **detail Normal** (Compression **Normalmap**, sRGB **off**) + a small grayscale **noise** texture for the macro blend.
 - Six layers total: `Riverbed, Meadow, Lawn, Grove, Gravel, Sand` (rename to taste).
 
 ---
@@ -94,27 +93,38 @@ Do this for all four corners → `S00, S10, S01, S11`.
 2. `rowA = Lerp(S00, S10, w.x)`;  `rowB = Lerp(S01, S11, w.x)`.
 3. `Result = Lerp(rowA, rowB, w.y)` → **Output `Result`**.
 
-> **Cost:** 4 samples per call. Bomb **BaseColor only** (see §5). For a *Lite* build, skip this function and instead multiply BaseColor by a large‑scale (×0.01 UV) grayscale **Noise** to break macro repetition — one sample, much cheaper.
+> **Cost:** 4 samples per call. Bomb the **albedos**, not the normal (§5). For a *Lite* build, skip this function and instead multiply BaseColor by a large‑scale (×0.01 UV) grayscale **Noise** to break macro repetition — one sample, much cheaper.
 
 ---
 
-## 5. `MF_BiomeLayer` — one layer → 4 attributes
+## 5. `MF_BiomeLayer` — two albedos → one layer
+Each biome is **two base‑color textures blended together** (macro variation that kills repetition), then the usual attributes. Outputs `BaseColor / Normal / Roughness / AO`.
+
 **Create:** `MF_BiomeLayer`.
 **Inputs:**
-- `BaseColorTex` (Texture2D), `NormalTex` (Texture2D)
+- `BaseColorA`, `BaseColorB` (Texture2D) — the two albedos
 - `TileScale` (Scalar, default 1)
+- `VariationScale` (Scalar, default 0.02) — macro patch size (*smaller = bigger patches*)
+- `VariationContrast` (Scalar, default 1) — A↔B edge hardness
 - `RoughnessConst` (Scalar, default 0.85)
+- *(optional)* `NormalTex` (Texture2D)
 
 **Graph:**
-1. **LandscapeLayerCoords** (Mapping Scale = 1) → **Multiply** `TileScale` = `UV`. *(World‑consistent terrain UVs.)*
-2. **BaseColor:** `MF_TextureBombing`(Tex = `BaseColorTex`, UV = `UV`) → `BC` (RGB).
-   - *(optional)* feed `BC` as **Near** of an `MF_DistanceBlend`, and a plain Texture Sample of `BaseColorTex` (no bombing) as **Far** → cheaper at distance.
-3. **Roughness:** if packed, take `BaseColorTex`'s **Alpha** (sample once more, or reuse a sample's A) → `Rough`; else use `RoughnessConst`.
-4. **Normal:** plain **Texture Sample** of `NormalTex` (Sampler Type **Normalmap**, Shared: Wrap), UVs = `UV` → `N` (RGB). *(Don't bomb normals — the per‑cell mirror flips tangent X/Y and breaks lighting.)*
-5. **AO:** `NormalTex`.Alpha if packed, else **Constant 1**.
-6. **Outputs** (4 FunctionOutputs): `BaseColor` = `BC`, `Normal` = `N`, `Roughness` = `Rough`, `AO` = `AO`.
+1. `UV` = **LandscapeLayerCoords** → **Multiply** `TileScale`. *(World‑consistent terrain UVs.)*
+2. **De‑tile each albedo:** `BC_A = MF_TextureBombing(BaseColorA, UV)`; `BC_B = MF_TextureBombing(BaseColorB, UV)`.
+3. **Macro blend mask** — world‑aligned so it doesn't ride the tiling:
+   - **AbsoluteWorldPosition → ComponentMask (R,G)** → **Multiply** `VariationScale` → `MUV`.
+   - Sample a tiling grayscale **noise texture** at `MUV` (or a **Noise** node) → `M` (0–1).
+   - *(optional sharpen)* `M = CheapContrast(M, VariationContrast)`.
+4. **BaseColor** = **Lerp**(`BC_A`, `BC_B`, `M`).
+5. **Roughness:** `BaseColorA`'s **Alpha** if packed, else `RoughnessConst`. *(Optionally Lerp A.A ↔ B.A by `M` to vary it too.)*
+6. **Normal:** if you have one, plain **Texture Sample** of `NormalTex` (Sampler Type **Normalmap**, Shared: Wrap, UVs = `UV`) → `N`; else **Constant3Vector (0,0,1)** (flat). *(Don't bomb normals — the mirror flips tangent X/Y. One shared detail normal at the master is the cheap way to add bump.)*
+7. **AO:** **Constant 1** (or a packed alpha).
+8. **Outputs** (4 FunctionOutputs): `BaseColor`, `Normal`, `Roughness`, `AO`.
 
-Reused six times (5 biomes + riverbed).
+> **Cost:** two bombed albedos = **8 taps** per biome, but still only **2 samplers** (Shared: Wrap) + 1 for the noise. If that's heavy: wrap `BaseColorB`'s bombing in `MF_DistanceBlend` (de‑tile B only up close), or just plain‑sample B — the macro Lerp already hides its tiling.
+
+Reused six times (5 biomes + riverbed). *(For the riverbed, feed its two albedos too — or pass one texture into both A and B for a plain layer.)*
 
 ---
 
