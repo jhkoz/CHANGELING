@@ -24,11 +24,11 @@ class ACHANGELINGCharacter : public ACharacter
 	GENERATED_BODY()
 
 	/** Camera boom positioning the camera behind the character */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera", meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* CameraBoom;
 
 	/** Follow camera */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
 	
 protected:
@@ -61,6 +61,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float MaxWalkSpeed = 200.0f;
 
+	/** Camera control variables */
+	float TargetArmLength = 400.0f;
+	bool bIsFirstPerson = false;
+
 	/** State Variables */
 	bool bIsWalking = false;
 public:
@@ -83,6 +87,11 @@ protected:
 
 	/** Called to toggle Running */
 	void ToggleWalkRun();
+
+protected:
+
+	void ToggleCameraView();
+	void ZoomCamera(float AxisValue);
 
 public:
 

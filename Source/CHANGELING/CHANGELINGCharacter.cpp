@@ -112,6 +112,31 @@ void ACHANGELINGCharacter::ToggleWalkRun()
 	}
 }
 
+void ACHANGELINGCharacter::ToggleCameraView()
+{
+	bIsFirstPerson = !bIsFirstPerson;
+
+	if (bIsFirstPerson)
+	{
+		// Switch to first person view
+		CameraBoom->TargetArmLength = 0.0f;
+	}
+	else
+	{
+		// Switch to third person view
+		CameraBoom->TargetArmLength = TargetArmLength;
+	}
+}
+
+void ACHANGELINGCharacter::ZoomCamera(float AxisValue)
+{
+	if (bIsFirstPerson) return; // Disable zoom in first person
+
+	// Adjust target arm length based on input axis value
+	TargetArmLength = FMath::Clamp(TargetArmLength + AxisValue * 20.0f, 100.0f, 600.0f);
+	CameraBoom->TargetArmLength = TargetArmLength;
+}
+
 void ACHANGELINGCharacter::DoMove(float Right, float Forward)
 {
 	if (GetController() != nullptr)
