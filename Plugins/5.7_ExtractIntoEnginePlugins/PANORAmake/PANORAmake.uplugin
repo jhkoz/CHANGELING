@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "2026.0",
+	"FriendlyName": "PANORAmake Basic",
+	"Description": "Complete & Accessible AAA-Grade Landscape Texturing",
+	"Category": "Other",
+	"CreatedBy": "Sylvain L.",
+	"CreatedByURL": "https://www.linkedin.com/in/sylvainlebeau/",
+	"DocsURL": "https://sylvl.gitbook.io/panoramake-release/",
+	"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/product/b22d47f8cc564f9189e799b471115691",
+	"SupportURL": "mailto:sylvl.pro@outlook.fr",
+	"EngineVersion": "5.7.0",
+	"CanContainContent": true,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "PANORAmake",
+			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"WhitelistPlatforms": [ "Win64", "Mac", "IOS", "Android", "Linux" ]
+		}
+	]
+}
