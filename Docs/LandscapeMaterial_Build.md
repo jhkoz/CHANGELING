@@ -57,43 +57,56 @@ Used in §5 to fade expensive detail into a cheap macro sample at distance.
 
 ---
 
-## 4. `MF_TextureBombing` — kill the tiling (heaviest function)
-Samples the texture across a cell grid with per‑cell random offset + mirror, 4 taps, derivative‑correct mips, bilinear‑blended. (Inigo Quilez "texture III".)
+## 4. `MF_TextureBombing` — kill the tiling (one Custom node)
+Anti-tiling sampler: per-cell random offset + mirror, 4 derivative-correct taps, bilinear-blended (Inigo Quilez "texture III"). Built as a **single Custom HLSL node** — the pure-node version kept collapsing to one tap (Stats showed 3 lookups), so this is the reliable build.
 
 **Create:** `MF_TextureBombing`.
-**Inputs:** `Tex` (**Texture2D**), `UV` (Vector2).
+**Inputs:** `Tex` (**Texture2D**), `UV` (Vector2 — already tiled: `LandscapeLayerCoords × TileScale`).
 
-**4a. Setup**
-1. **Floor**(`UV`) = `iuv`;  **Frac**(`UV`) = `fuv`.
-2. **DDX**(`UV`) = `ddx`;  **DDY**(`UV`) = `ddy`.
+**Add one `Custom` node** and set:
+- **Output Type:** `CMOT Float4`
+- **Inputs** (case-sensitive — must match the code exactly): `Tex` ← the `Tex` input pin; `UV` ← the `UV` input pin.
 
-**4b. Per‑cell hash** — build it once, reuse for 4 corners. For a cell `C` (Vector2):
-- `d1 = Dot(C, (127.1, 311.7))`
-- `d2 = Dot(C, (269.5, 183.3))`
-- `d3 = Dot(C, (113.5, 271.9))`
-- `d4 = Dot(C, (246.1, 124.6))`
-- `V4 = Append(Append(d1,d2), Append(d3,d4))`  *(AppendVector twice → Vector4)*
-- `H = Frac( Sine(V4) × 43758.5453 )`  → a stable Vector4 in [0,1)
-  - `Offset = H.xy` (ComponentMask RG)
-  - `Flip   = Sign( H.zw − 0.5 )` (ComponentMask BA → Subtract 0.5 → **Sign**) = ±1 mirror.
+Paste into its **Code** box:
 
-> Tip: make the hash its own tiny `MF_Hash44` (input `C`, output `H`) and call it 4×, or just duplicate the node cluster for the 4 corners below.
+```hlsl
+// IQ stochastic non-tiling texture (4-tap). UV must already be tiled (LandscapeCoords * TileScale).
+#define HASH4(p) frac(sin(float4(dot(p,float2(127.1,311.7)),dot(p,float2(269.5,183.3)),dot(p,float2(113.5,271.9)),dot(p,float2(246.1,124.6))))*43758.5453)
 
-**4c. One tap** — for corner `k` ∈ {(0,0),(1,0),(0,1),(1,1)}:
-1. `C_k = iuv + k`.
-2. Hash `C_k` → `Offset_k`, `Flip_k`.
-3. `uv_k = UV × Flip_k + Offset_k`.
-4. `ddx_k = ddx × Flip_k`;  `ddy_k = ddy × Flip_k`.
-5. **Texture Sample**: Texture = the `Tex` input pin; **Sampler Source = Shared: Wrap**; **MipValueMode = Derivative (DDX/DDY)** (this exposes DDX/DDY pins); UVs = `uv_k`, DDX = `ddx_k`, DDY = `ddy_k`. Output `S_k` (RGB).
+float2 dX = ddx(UV);
+float2 dY = ddy(UV);
+float2 iuv = floor(UV);
+float2 fuv = frac(UV);
 
-Do this for all four corners → `S00, S10, S01, S11`.
+float4 ha = HASH4(iuv + float2(0,0));
+float4 hb = HASH4(iuv + float2(1,0));
+float4 hc = HASH4(iuv + float2(0,1));
+float4 hd = HASH4(iuv + float2(1,1));
 
-**4d. Blend**
-1. `w = SmoothStep(0.25, 0.75, fuv)` (Vector2) — or `Saturate((fuv−0.25)/0.5)` then the cubic.
-2. `rowA = Lerp(S00, S10, w.x)`;  `rowB = Lerp(S01, S11, w.x)`.
-3. `Result = Lerp(rowA, rowB, w.y)` → **Output `Result`**.
+float2 fa = sign(ha.zw - 0.5);
+float2 fb = sign(hb.zw - 0.5);
+float2 fc = sign(hc.zw - 0.5);
+float2 fd = sign(hd.zw - 0.5);
 
-> **Cost:** 4 samples per call. Bomb the **albedos**, not the normal (§5). For a *Lite* build, skip this function and instead multiply BaseColor by a large‑scale (×0.01 UV) grayscale **Noise** to break macro repetition — one sample, much cheaper.
+float4 ca = Texture2DSampleGrad(Tex, GetMaterialSharedSampler(TexSampler, Material.Wrap_WorldGroupSettings), UV*fa + ha.xy, dX*fa, dY*fa);
+float4 cb = Texture2DSampleGrad(Tex, GetMaterialSharedSampler(TexSampler, Material.Wrap_WorldGroupSettings), UV*fb + hb.xy, dX*fb, dY*fb);
+float4 cc = Texture2DSampleGrad(Tex, GetMaterialSharedSampler(TexSampler, Material.Wrap_WorldGroupSettings), UV*fc + hc.xy, dX*fc, dY*fc);
+float4 cd = Texture2DSampleGrad(Tex, GetMaterialSharedSampler(TexSampler, Material.Wrap_WorldGroupSettings), UV*fd + hd.xy, dX*fd, dY*fd);
+
+float2 w = smoothstep(0.25, 0.75, fuv);
+#undef HASH4
+return lerp(lerp(ca,cb,w.x), lerp(cc,cd,w.x), w.y);
+```
+
+Wire the Custom node output → function **Output `Result`** (`.rgb` for color; `.a` carries packed roughness if you pack it).
+
+**Why a Custom node, not the wired graph:** it bakes in the three bugs that broke the node version — UV uses **Flip** not Offset (`UV*fa`), the derivatives mirror with it (`dX*fa`, `dY*fa`), and the corner order is x-first `(0,0),(1,0),(0,1),(1,1)` to match the blend. All four taps share **one** wrap sampler via `GetMaterialSharedSampler`, so the whole 6-layer material stays at ~1-3 samplers instead of ~18.
+
+**Two caveats:**
+- If `Material.Wrap_WorldGroupSettings` errors as undeclared, replace both `GetMaterialSharedSampler(TexSampler, Material.Wrap_WorldGroupSettings)` with just `TexSampler` — compiles identically, but costs one sampler slot per texture.
+- The random flip mirrors normal maps on ~half the tiles. Fine for organic ground; if it bothers you, sample the normal flip-free (`UV + ha.xy`, drop the `*fa`/`sign`).
+
+> **Cost:** 4 samples / **1 sampler** per call. Bomb the **albedos**, not the normal (§5). **Verify:** after compile, Stats `Texture Lookups (PS)` should jump from 3 to ~12 per active layer and the visible grid repetition should vanish — if it stays at 3, the Custom node isn't feeding the output (check the wire).
 
 ---
 
