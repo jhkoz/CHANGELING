@@ -13,8 +13,21 @@ Height conversion assumes the default landscape Z scale of 100
 The file size must match the landscape's Overall Resolution (Landscape mode
 -> Manage shows it, e.g. 2017x2017); pass --size / --width / --height.
 
+River / moat protection - two ways to keep hills out of carved channels:
+  --protect-heightmap current.png --protect-below 0
+      Export the landscape's current heightmap (Landscape mode -> Manage ->
+      Export), and any terrain below the given height (meters, world Z) is
+      protected from hills. With the landscape actor at Z=0, carved channels
+      are negative, flat grade is 0, so the default threshold of 0 protects
+      exactly what was dug.
+  --protect-mask mask.png
+      Hand-painted mask: white = no hills, black = full hills.
+Both can be combined; protection is the union. --protect-feather controls
+the fade distance at protection edges.
+
 Examples:
   py -3 generate_rolling_hills.py --size 2017 --out hills.png
+  py -3 generate_rolling_hills.py --size 2017 --protect-heightmap current.png --out hills.png
   py -3 generate_rolling_hills.py --size 4033 --wavelength 600 --amplitude 8 --seed 12 --out hills.png
 """
 
@@ -72,6 +85,44 @@ def edge_falloff_mask(height, width, quad_m, falloff_m):
     return fade(np.clip(d, 0.0, 1.0))
 
 
+def _box1d(a, r, axis):
+    """Box blur along one axis via cumulative sum (edge-clamped)."""
+    if r < 1:
+        return a
+    pad = [(0, 0), (0, 0)]
+    pad[axis] = (r + 1, r)
+    c = np.cumsum(np.pad(a, pad, mode="edge"), axis=axis)
+    k = 2 * r + 1
+    hi = [slice(None)] * 2
+    lo = [slice(None)] * 2
+    hi[axis] = slice(k, None)
+    lo[axis] = slice(0, -k)
+    return (c[tuple(hi)] - c[tuple(lo)]) / k
+
+
+def feather(mask, radius_px, passes=2):
+    """Soften a 0/1 mask into a smooth ramp over ~radius_px pixels."""
+    out = mask.astype(np.float64)
+    per_pass = max(1, radius_px // passes)
+    for _ in range(passes):
+        out = _box1d(_box1d(out, per_pass, 0), per_pass, 1)
+    return fade(np.clip(out, 0.0, 1.0))
+
+
+def load_grayscale(path, width, height, what):
+    """Load a PNG as float array at (height, width), plus its value scale."""
+    from PIL import Image
+    img = Image.open(path)
+    if img.size != (width, height):
+        print(f"  note: resizing {what} {img.size[0]}x{img.size[1]} -> {width}x{height}")
+        img = img.resize((width, height), Image.BILINEAR)
+    arr = np.array(img)
+    if arr.ndim == 3:
+        arr = arr[..., 0]
+    scale = 255.0 if arr.dtype == np.uint8 else 65535.0
+    return arr.astype(np.float64), scale
+
+
 def main():
     p = argparse.ArgumentParser(description="Generate a rolling-hills heightmap for UE landscape import.")
     p.add_argument("--size", type=int, default=2017, help="square resolution in vertices (default 2017)")
@@ -86,6 +137,10 @@ def main():
     p.add_argument("--edge-falloff", type=float, default=0.0, help="fade hills to zero within N meters of the border (default off)")
     p.add_argument("--z-scale", type=float, default=100.0, help="landscape Z scale (default 100)")
     p.add_argument("--seed", type=int, default=0, help="random seed")
+    p.add_argument("--protect-heightmap", help="exported current heightmap PNG; terrain below --protect-below stays hill-free")
+    p.add_argument("--protect-below", type=float, default=0.0, help="protection threshold in meters of world Z (default 0)")
+    p.add_argument("--protect-mask", help="hand-painted mask PNG: white = no hills")
+    p.add_argument("--protect-feather", type=float, default=8.0, help="fade distance at protection edges in meters (default 8)")
     p.add_argument("--out", default="RollingHills.png", help="output file (.png 16-bit, or .r16/.raw)")
     args = p.parse_args()
 
@@ -99,6 +154,25 @@ def main():
     meters = hills * args.amplitude
     if args.edge_falloff > 0.0:
         meters *= edge_falloff_mask(h, w, args.quad_size, args.edge_falloff)
+
+    # river / moat protection
+    protect = None
+    if args.protect_heightmap:
+        arr, scale = load_grayscale(args.protect_heightmap, w, h, "protect heightmap")
+        if scale != 65535.0:
+            sys.exit("--protect-heightmap must be a 16-bit PNG (use Landscape -> Export)")
+        height_m = (arr - 32768.0) / 128.0 * (100.0 / args.z_scale)
+        protect = (height_m < args.protect_below).astype(np.float64)
+    if args.protect_mask:
+        arr, scale = load_grayscale(args.protect_mask, w, h, "protect mask")
+        hand = arr / scale
+        protect = hand if protect is None else np.maximum(protect, hand)
+    if protect is not None:
+        raw_pct = 100.0 * protect.mean()
+        radius_px = max(1, round(args.protect_feather / args.quad_size))
+        protect = feather(protect, radius_px)
+        meters *= 1.0 - protect
+        print(f"protection: {raw_pct:.1f}% of area, feathered over ~{args.protect_feather:.0f} m")
 
     # UE height encoding: value = 32768 + meters * 128 * (100 / ZScale)
     values = 32768.0 + meters * 128.0 * (100.0 / args.z_scale)
@@ -121,7 +195,7 @@ def main():
     if clipped:
         print(f"  WARNING: {clipped} samples clipped - lower --amplitude or check --z-scale")
     print("  import: Landscape mode -> Sculpt -> Import, pick this file,")
-    print("  target a new edit layer ('Hills') to keep the existing sculpt.")
+    print("  target a new edit layer ('RollingHills') to keep the existing sculpt.")
 
 
 if __name__ == "__main__":
