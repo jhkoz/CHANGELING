@@ -143,8 +143,18 @@ public:
 	// Moon
 	//──────────────────────────────────────────────────────────────
 
+	/** Peak moonlight illuminance (lux). Stylized: with SunMaxIntensity = 10 this is ~3.5%
+	 *  of the sun — a clearly readable full-moon night. Drop toward 0.04 for a near-real,
+	 *  barely-there country moon. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Moon")
-	float MoonMaxIntensity = 0.04f;   // soft country moonlight, not a floodlight
+	float MoonMaxIntensity = 0.35f;
+
+	/** Make the moon the second Sky Atmosphere light (index 1). The night sky then scatters
+	 *  faint moonlight, the real-time SkyLight capture turns non-black, and the night ambient
+	 *  (NightSkyLightFloor / MoonAmbientBoost) actually reaches the ground. Costs a little
+	 *  star contrast on bright moonlit nights. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Moon")
+	bool bMoonLightsSky = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Moon")
 	float MoonMeshDistance = 600000.0f;

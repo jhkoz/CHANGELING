@@ -58,10 +58,11 @@ AAstroDayNightManager::AAstroDayNightManager()
 
 	MoonLight = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("MoonLight"));
 	MoonLight->SetupAttachment(Root);
-	MoonLight->Intensity           = 0.05f;
-	MoonLight->bAtmosphereSunLight = false;   // moon doesn't drive sky scattering
+	MoonLight->Intensity               = 0.05f;
+	MoonLight->bAtmosphereSunLight     = true;    // second atmosphere light; see bMoonLightsSky
+	MoonLight->AtmosphereSunLightIndex = 1;
 	MoonLight->SetCastShadows(false);
-	MoonLight->LightColor          = FColor(160, 180, 255);
+	MoonLight->LightColor              = FColor(160, 180, 255);
 
 	NightFillLight = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("NightFillLight"));
 	NightFillLight->SetupAttachment(Root);
@@ -120,6 +121,16 @@ void AAstroDayNightManager::BeginPlay()
 	{
 		MoonLight = Cast<UDirectionalLightComponent>(
 			GetDefaultSubobjectByName(TEXT("MoonLight")));
+	}
+
+	// Apply the moon-as-atmosphere-light choice here, not just the constructor: the placed
+	// actor predates the flag and saved instances keep their old component state. Without
+	// this the night sky capture is pitch black and the SkyLight night floor multiplies zero.
+	if (MoonLight)
+	{
+		MoonLight->bAtmosphereSunLight     = bMoonLightsSky;
+		MoonLight->AtmosphereSunLightIndex = 1;
+		MoonLight->MarkRenderStateDirty();
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("AstroDayNightManager — SunLight:%s MoonLight:%s MoonMesh:%s"),
