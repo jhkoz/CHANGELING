@@ -109,6 +109,37 @@ def feather(mask, radius_px, passes=2):
     return fade(np.clip(out, 0.0, 1.0))
 
 
+def _fill_row(open_row, seeds_row):
+    """Open-run flood within one row: any run containing a seed lights up fully."""
+    seg = np.cumsum(~open_row)
+    hot = seeds_row & open_row
+    if not hot.any():
+        return hot
+    return open_row & np.isin(seg, np.unique(seg[hot]))
+
+
+def enclosed_regions(protect_bool):
+    """True where open ground cannot reach the map border without crossing
+    protected terrain - e.g. an island ringed by a carved moat."""
+    open_g = ~protect_bool
+    h = open_g.shape[0]
+    outside = np.zeros_like(open_g)
+    outside[0] = open_g[0]
+    outside[-1] = open_g[-1]
+    outside[:, 0] |= open_g[:, 0]
+    outside[:, -1] |= open_g[:, -1]
+    for _ in range(64):
+        before = int(outside.sum())
+        for i in range(h):                      # top-down sweep
+            seeds = outside[i] | (outside[i - 1] if i > 0 else outside[i])
+            outside[i] = _fill_row(open_g[i], seeds)
+        for i in range(h - 2, -1, -1):          # bottom-up sweep
+            outside[i] = _fill_row(open_g[i], outside[i] | outside[i + 1])
+        if int(outside.sum()) == before:
+            break
+    return open_g & ~outside
+
+
 def load_grayscale(path, width, height, what):
     """Load a PNG as float array at (height, width), plus its value scale."""
     from PIL import Image
@@ -140,6 +171,8 @@ def main():
     p.add_argument("--protect-heightmap", help="exported current heightmap PNG; terrain below --protect-below stays hill-free")
     p.add_argument("--protect-below", type=float, default=0.0, help="protection threshold in meters of world Z (default 0)")
     p.add_argument("--protect-mask", help="hand-painted mask PNG: white = no hills")
+    p.add_argument("--protect-enclosed", action="store_true",
+                   help="also protect ground fully ringed by carved water (e.g. the island inside a moat)")
     p.add_argument("--protect-feather", type=float, default=8.0, help="fade distance at protection edges in meters (default 8)")
     p.add_argument("--out", default="RollingHills.png", help="output file (.png 16-bit, or .r16/.raw)")
     args = p.parse_args()
@@ -167,6 +200,18 @@ def main():
         arr, scale = load_grayscale(args.protect_mask, w, h, "protect mask")
         hand = arr / scale
         protect = hand if protect is None else np.maximum(protect, hand)
+    if args.protect_enclosed:
+        if protect is None:
+            sys.exit("--protect-enclosed needs a barrier: add --protect-heightmap "
+                     "(the moat must read below --protect-below)")
+        island = enclosed_regions(protect > 0.5)
+        added = 100.0 * island.mean()
+        if added < 0.001:
+            print("  note: --protect-enclosed found nothing enclosed - is the moat a "
+                  "complete sub-threshold ring, with all regions exported?")
+        else:
+            print(f"  enclosed ground protected: {added:.1f}% (island inside the moat)")
+        protect = np.maximum(protect, island.astype(np.float64))
     if protect is not None:
         raw_pct = 100.0 * protect.mean()
         radius_px = max(1, round(args.protect_feather / args.quad_size))
