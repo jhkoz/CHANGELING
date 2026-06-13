@@ -57,6 +57,7 @@ def main():
     p.add_argument("--lake-radius", type=float, default=70.0, help="corner lake radius, m (default 70)")
     p.add_argument("--lake-depth", type=float, default=5.0, help="corner lake depth below local ground, m (default 5)")
     p.add_argument("--lake-inset", type=float, default=160.0, help="how far the lake centre sits in from the corner, m (default 160)")
+    p.add_argument("--smooth", action="store_true", help="omit channel carving (island pad + slope + hills only) so the Water plugin can dig the moat/rivers/lakes itself")
     # hills
     p.add_argument("--hill-amplitude", type=float, default=5.0, help="rolling hill height, m (default 5)")
     p.add_argument("--hill-wavelength", type=float, default=300.0, help="hill spacing, m (default 300)")
@@ -115,6 +116,8 @@ def main():
         lake = args.lake_depth * (1.0 - smooth01((lake_dist - args.lake_radius) / bank))
         river = river * smooth01((d_lake - d) / bank)  # stop rivers at the lakes, not the map edge
 
+    if args.smooth:
+        moat = river = lake = np.zeros_like(d)
     carve = np.maximum(np.maximum(moat, river), lake)
     surf = land - carve
 
