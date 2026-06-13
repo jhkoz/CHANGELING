@@ -140,12 +140,15 @@ def main():
 
     # diagnostics
     def z(px, py):
-        return meters[int(round(cy + py / quad)), int(round(cx + px / quad))]
+        iy = min(max(int(round(cy + py / quad)), 0), h - 1)
+        ix = min(max(int(round(cx + px / quad)), 0), w - 1)
+        return meters[iy, ix]
     print(f"wrote {args.out}  ({w}x{h}, 16-bit)")
     print(f"  island centre Z = {z(0,0):+.2f} m   (structure base sits here)")
     print(f"  moat bottom    Z = {meters[d < R_mo][ (d[d<R_mo] > R_isl) ].min():+.2f} m")
     print(f"  corner land    Z = {meters[0,0]:+.2f} m")
-    print(f"  along +X: " + "  ".join(f"{r}m:{z(r,0):+.1f}" for r in (0, 60, 90, 200, 600)))
+    halfm = (min(w, h) - 1) / 2.0 * quad
+    print(f"  along +X: " + "  ".join(f"{int(r)}m:{z(r,0):+.1f}" for r in (0, halfm*0.25, halfm*0.5, halfm*0.75, halfm*0.97)))
     if args.corner_lakes and (lake > args.lake_depth * 0.5).any():
         print(f"  corner lake bottom Z = {meters[lake > args.lake_depth*0.5].min():+.2f} m (high source pools draining to the moat)")
     print(f"  value range {data.min()}..{data.max()} (32768 = Z 0)")
