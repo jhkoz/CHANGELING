@@ -50,7 +50,8 @@ def main():
     p.add_argument("--moat-depth", type=float, default=6.0, help="moat depth below island, m (default 6)")
     p.add_argument("--river-width", type=float, default=24.0, help="river channel width, m (default 24)")
     p.add_argument("--river-depth", type=float, default=4.0, help="river depth below local ground, m (default 4)")
-    p.add_argument("--edge-height", type=float, default=25.0, help="land height at the map corners, m (default 25)")
+    p.add_argument("--edge-height", type=float, default=25.0, help="height difference between island and map corners, m (default 25)")
+    p.add_argument("--island-peak", action="store_true", help="island is the HIGH point and land rolls gently DOWN to the corners (lakes become low sinks); default is the reverse")
     p.add_argument("--bank", type=float, default=8.0, help="smoothing width of channel walls / island lip, m (default 8)")
     # corner lakes (rivers terminate in pools instead of running off the map edge)
     p.add_argument("--corner-lakes", action="store_true", help="carve a pool at each corner where its river ends")
@@ -86,9 +87,10 @@ def main():
     bank = max(1.0, min(args.bank, args.moat_width * 0.45, args.river_width * 0.45))
     r_half = args.river_width * 0.5
 
-    # macro radial grade: 0 at the moat's outer edge, rising to edge_height at the corners
+    # macro radial grade: 0 at the moat's outer edge, +/- edge_height at the corners
+    # (island-peak -> land descends outward so the island is the high point)
     t = (d - R_mo) / max(d_corner - R_mo, 1.0)
-    base = args.edge_height * smooth01(t)
+    base = (-1.0 if args.island_peak else 1.0) * args.edge_height * smooth01(t)
 
     # rolling hills, normalised [-1,1], faded in beyond the moat so the island/moat stay clean
     hills = rolling_hills(h, w, d_corner * 2.0, args.hill_wavelength,
