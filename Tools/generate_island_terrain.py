@@ -50,8 +50,13 @@ def main():
     p.add_argument("--moat-depth", type=float, default=6.0, help="moat depth below island, m (default 6)")
     p.add_argument("--river-width", type=float, default=24.0, help="river channel width, m (default 24)")
     p.add_argument("--river-depth", type=float, default=4.0, help="river depth below local ground, m (default 4)")
-    p.add_argument("--edge-height", type=float, default=40.0, help="land height at the map corners, m (default 40)")
+    p.add_argument("--edge-height", type=float, default=25.0, help="land height at the map corners, m (default 25)")
     p.add_argument("--bank", type=float, default=8.0, help="smoothing width of channel walls / island lip, m (default 8)")
+    # corner lakes (rivers terminate in pools instead of running off the map edge)
+    p.add_argument("--corner-lakes", action="store_true", help="carve a pool at each corner where its river ends")
+    p.add_argument("--lake-radius", type=float, default=70.0, help="corner lake radius, m (default 70)")
+    p.add_argument("--lake-depth", type=float, default=5.0, help="corner lake depth below local ground, m (default 5)")
+    p.add_argument("--lake-inset", type=float, default=160.0, help="how far the lake centre sits in from the corner, m (default 160)")
     # hills
     p.add_argument("--hill-amplitude", type=float, default=5.0, help="rolling hill height, m (default 5)")
     p.add_argument("--hill-wavelength", type=float, default=300.0, help="hill spacing, m (default 300)")
@@ -99,7 +104,18 @@ def main():
              * (1.0 - smooth01((rdist - r_half) / bank))
              * smooth01((d - R_isl) / bank))
 
-    carve = np.maximum(moat, river)
+    # corner lakes: a pool on each diagonal where its river terminates
+    lake = np.zeros_like(d)
+    if args.corner_lakes:
+        d_lake = max(d_corner - args.lake_inset, R_mo + args.lake_radius + bank)
+        inv = 1.0 / np.sqrt(2.0)
+        lake_dist = np.full_like(d, 1e9)
+        for sx, sy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+            lake_dist = np.minimum(lake_dist, np.sqrt((X - d_lake * sx * inv) ** 2 + (Y - d_lake * sy * inv) ** 2))
+        lake = args.lake_depth * (1.0 - smooth01((lake_dist - args.lake_radius) / bank))
+        river = river * smooth01((d_lake - d) / bank)  # stop rivers at the lakes, not the map edge
+
+    carve = np.maximum(np.maximum(moat, river), lake)
     surf = land - carve
 
     # force a flat island top at exactly 0, smooth lip into the moat
@@ -125,6 +141,8 @@ def main():
     print(f"  moat bottom    Z = {meters[d < R_mo][ (d[d<R_mo] > R_isl) ].min():+.2f} m")
     print(f"  corner land    Z = {meters[0,0]:+.2f} m")
     print(f"  along +X: " + "  ".join(f"{r}m:{z(r,0):+.1f}" for r in (0, 60, 90, 200, 600)))
+    if args.corner_lakes and (lake > args.lake_depth * 0.5).any():
+        print(f"  corner lake bottom Z = {meters[lake > args.lake_depth*0.5].min():+.2f} m (high source pools draining to the moat)")
     print(f"  value range {data.min()}..{data.max()} (32768 = Z 0)")
     if clipped:
         print(f"  WARNING: {clipped} samples clipped - lower --edge-height/--moat-depth or --z-scale")
