@@ -53,6 +53,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* ToggleWalkRunAction;
 
+	/** Camera Zoom Input Action (mouse wheel, Axis1D) */
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* ZoomAction;
+
+	/** Toggle 1st/3rd person view Input Action (middle mouse, Boolean) */
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* ToggleViewAction;
+
 
 	/** Speed Variables */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Movement")
@@ -92,6 +100,9 @@ protected:
 
 	void ToggleCameraView();
 	void ZoomCamera(float AxisValue);
+
+	/** Enhanced Input handler for camera zoom; forwards the Axis1D value to ZoomCamera */
+	void Zoom(const FInputActionValue& Value);
 
 public:
 

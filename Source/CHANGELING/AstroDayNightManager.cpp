@@ -11,6 +11,7 @@
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
+#include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Misc/Paths.h"
@@ -34,6 +35,30 @@ static double Norm360(double d)
 {
 	d = FMath::Fmod(d, 360.0);
 	return d < 0.0 ? d + 360.0 : d;
+}
+
+/** World uniform scale that makes a mesh of half-extent LocalRadius subtend AngularDiameterDeg
+ *  (apparent diameter, degrees) when viewed from Distance away. */
+static float ScaleForAngularDiameter(float AngularDiameterDeg, float Distance, float LocalRadius)
+{
+	if (LocalRadius <= KINDA_SMALL_NUMBER) return 1.0f;
+	const float WorldRadius = Distance * FMath::Tan(FMath::DegreesToRadians(AngularDiameterDeg * 0.5f));
+	return WorldRadius / LocalRadius;
+}
+
+/** Cache a static mesh's unscaled bounds: OutRadius = largest box half-extent (the disc radius for
+ *  a sphere or a flat billboard); OutCenter = bounds origin in local space (i.e. the pivot offset,
+ *  non-zero when the mesh's pivot isn't its centre). */
+static void CacheMeshLocalBounds(UStaticMeshComponent* Mesh, float& OutRadius, FVector& OutCenter)
+{
+	OutRadius = 50.0f;
+	OutCenter = FVector::ZeroVector;
+	if (Mesh && Mesh->GetStaticMesh())
+	{
+		const FBoxSphereBounds B = Mesh->GetStaticMesh()->GetBounds();
+		OutRadius = static_cast<float>(FMath::Max3(B.BoxExtent.X, B.BoxExtent.Y, B.BoxExtent.Z));
+		OutCenter = FVector(B.Origin);
+	}
 }
 
 //──────────────────────────────────────────────────────────────────────────────
@@ -78,6 +103,11 @@ AAstroDayNightManager::AAstroDayNightManager()
 	SkyAtmosphere = CreateDefaultSubobject<USkyAtmosphereComponent>(TEXT("SkyAtmosphere"));
 	SkyAtmosphere->SetupAttachment(Root);
 
+	SunMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SunMesh"));
+	SunMesh->SetupAttachment(Root);
+	SunMesh->SetCastShadow(false);
+	SunMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	MoonMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MoonMesh"));
 	MoonMesh->SetupAttachment(Root);
 	MoonMesh->SetCastShadow(false);
@@ -117,6 +147,17 @@ void AAstroDayNightManager::BeginPlay()
 		UE_LOG(LogTemp, Warning, TEXT("AstroDayNightManager: MoonMesh was null — fallback %s"),
 			MoonMesh ? TEXT("succeeded") : TEXT("FAILED — check Blueprint components"));
 	}
+	if (!SunMesh)
+	{
+		SunMesh = Cast<UStaticMeshComponent>(
+			GetDefaultSubobjectByName(TEXT("SunMesh")));
+	}
+
+	// Cache the sun/moon mesh bounds now so UpdateSun/UpdateMoon can size each disc from an angular
+	// diameter and re-centre an off-pivot mesh (the assigned sphere's pivot sits at its base).
+	CacheMeshLocalBounds(SunMesh,  SunMeshLocalRadius,  SunMeshLocalCenter);
+	CacheMeshLocalBounds(MoonMesh, MoonMeshLocalRadius, MoonMeshLocalCenter);
+
 	if (!MoonLight)
 	{
 		MoonLight = Cast<UDirectionalLightComponent>(
@@ -297,6 +338,23 @@ void AAstroDayNightManager::UpdateSun()
 	if (!bIsCivilTwilight &&  bWasCivilTwilight) OnDusk.Broadcast(CurrentDateTime);
 	bWasCivilTwilight = bIsCivilTwilight;
 
+	// Position & size the sun disc mesh toward the sun (parallels MoonMesh in UpdateMoon).
+	if (SunMesh)
+	{
+		// SunRotation points along the light's travel (toward the ground); negate → toward the sun.
+		const FVector  Dir     = -SunRotation.Vector();
+		const FRotator MeshRot = (-Dir).Rotation();                      // billboard the disc at the viewer
+		const float    Scale   = ScaleForAngularDiameter(SunAngularDiameter, SunMeshDistance, SunMeshLocalRadius)
+		                         * HorizonSizeFactor(SunElevation);
+		const FVector  Target  = GetObserverLocation() + Dir * SunMeshDistance;
+		// Place the mesh so its BOUNDS CENTRE lands on Target — an off-centre pivot would otherwise
+		// throw the disc several degrees off the true sun direction at these scales.
+		const FVector  CentreOffset = MeshRot.RotateVector(SunMeshLocalCenter * Scale);
+		SunMesh->SetWorldScale3D(FVector(Scale));
+		SunMesh->SetWorldRotation(MeshRot);
+		SunMesh->SetWorldLocation(Target - CentreOffset);
+		SunMesh->SetVisibility(TrueCorrectedElevation > -2.0f);          // hide once below the horizon
+	}
 }
 
 float AAstroDayNightManager::ComputeSunIntensity() const
@@ -420,22 +478,27 @@ void AAstroDayNightManager::UpdateMoon()
 	bWasInFullMoonZone = bInFullMoonZone;
 	bWasInNewMoonZone  = bInNewMoonZone;
 
-	// Position moon mesh relative to camera
+	// Position & size the moon mesh relative to camera
 	if (MoonMesh)
 	{
 		// Negate: MoonRotation.Vector() points toward the ground (light travel direction).
 		// We want the direction toward the moon — the opposite.
-		const FVector Dir = -MoonRotation.Vector();
-		MoonMesh->SetWorldLocation(GetObserverLocation() + Dir * MoonMeshDistance);
+		const FVector  Dir     = -MoonRotation.Vector();
+		// Tidal lock: keep a fixed face toward the viewer so surface features don't drift as the
+		// moon crosses the sky. Spinning the sphere doesn't affect the phase — its geometric
+		// normals stay radial in world space.
+		const FRotator MeshRot = (-Dir).Rotation();
 
-		// Tidal lock: keep a fixed face toward the viewer so surface features don't
-		// drift as the moon crosses the sky. Spinning the sphere doesn't affect the
-		// phase — its geometric normals stay radial in world space.
-		MoonMesh->SetWorldRotation((-Dir).Rotation());
-
-		// Subtle size variation: ~7% larger at perigee vs apogee (384400 km mean)
+		// Subtle size variation: ~7% larger at perigee vs apogee (384400 km mean).
 		const float SizeFactor = 384400.0f / FMath::Max(MoonDistanceKm, 356500.0f);
-		MoonMesh->SetWorldScale3D(FVector(MoonMeshScale * SizeFactor * HorizonSizeFactor(CorrectedAlt)));
+		const float Scale      = ScaleForAngularDiameter(MoonAngularDiameter, MoonMeshDistance, MoonMeshLocalRadius)
+		                         * SizeFactor * HorizonSizeFactor(CorrectedAlt);
+		const FVector Target   = GetObserverLocation() + Dir * MoonMeshDistance;
+		// Centre the bounds on Target so the assigned mesh's base-pivot doesn't offset the disc.
+		const FVector CentreOffset = MeshRot.RotateVector(MoonMeshLocalCenter * Scale);
+		MoonMesh->SetWorldScale3D(FVector(Scale));
+		MoonMesh->SetWorldRotation(MeshRot);
+		MoonMesh->SetWorldLocation(Target - CentreOffset);
 		MoonMesh->SetVisibility(CorrectedAlt > -5.0f);
 
 		// Feed the sun's world direction to the moon material so it can light the

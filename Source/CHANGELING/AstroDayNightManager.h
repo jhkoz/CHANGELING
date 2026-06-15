@@ -57,6 +57,11 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Astronomy|Sun")
 	UDirectionalLightComponent* SunLight;
 
+	/** Assign a sphere mesh in the Blueprint to show the sun disc (mirrors MoonMesh).
+	 *  A bright translucent material lets the SunLight transmit through it for a real glow. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Astronomy|Sun")
+	UStaticMeshComponent* SunMesh;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Astronomy|Moon")
 	UDirectionalLightComponent* MoonLight;
 
@@ -129,6 +134,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Sun")
 	FLinearColor SunDiscColor = FLinearColor(1.3f, 1.05f, 0.75f);
 
+	/** Distance from the camera to the sun disc mesh (matches the moon's by default). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Sun")
+	float SunMeshDistance = 600000.0f;
+
+	/** Apparent angular diameter of the sun disc, in degrees (the real sun is ≈ 0.53°; ~12° reads
+	 *  as a bold, stylised sun). The world scale is derived from this and the assigned mesh's actual
+	 *  bounds every frame, so it stays correct for whatever mesh you drop on SunMesh. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Sun", meta = (ClampMin = "0.1", ClampMax = "45.0"))
+	float SunAngularDiameter = 11.04f;   // 1.15 × the moon's 9.6° — nearly equal, sun a touch larger
+
 	/** Fakes the "Moon Illusion": disc/mesh size multiplier at the horizon, fading to 1 as the
 	 *  body climbs. Applies to BOTH sun and moon. 1.0 = camera-accurate (off). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Sun", meta = (ClampMin = "1.0"))
@@ -156,11 +171,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Moon")
 	bool bMoonLightsSky = true;
 
+	/** Distance from the camera to the moon disc. Kept CLOSER than SunMeshDistance so the moon
+	 *  always renders in front of (occludes) the sun during a transit/eclipse. Apparent size is
+	 *  unaffected — it's driven by MoonAngularDiameter regardless of distance. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Moon")
-	float MoonMeshDistance = 600000.0f;
+	float MoonMeshDistance = 500000.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Moon")
-	float MoonMeshScale = 1500.0f;
+	/** Apparent angular diameter of the moon disc, in degrees (the real moon is ≈ 0.52°). Derived
+	 *  to world scale from the assigned mesh's bounds every frame, so any mesh sizes correctly. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astronomy|Moon", meta = (ClampMin = "0.1", ClampMax = "45.0"))
+	float MoonAngularDiameter = 9.6f;
 
 	//──────────────────────────────────────────────────────────────
 	// Sky / night ambient
@@ -432,4 +452,11 @@ private:
 	bool  bWasInFullMoonZone = false;  // phase was in [0.46, 0.54]
 	bool  bWasInNewMoonZone  = false;  // phase was in [0.0, 0.04] or [0.96, 1.0]
 	int32 PrevDay            = -1;
+
+	// Cached unscaled bounds of the assigned sun/moon meshes, captured at BeginPlay. Lets the disc
+	// size derive from an angular diameter, and re-centres a mesh whose pivot isn't at its centre.
+	float   SunMeshLocalRadius  = 50.0f;
+	float   MoonMeshLocalRadius = 50.0f;
+	FVector SunMeshLocalCenter  = FVector::ZeroVector;
+	FVector MoonMeshLocalCenter = FVector::ZeroVector;
 };

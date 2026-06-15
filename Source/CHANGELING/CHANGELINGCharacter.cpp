@@ -68,6 +68,12 @@ void ACHANGELINGCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 		// Toggle Walk/Run
 		EnhancedInputComponent->BindAction(ToggleWalkRunAction, ETriggerEvent::Triggered, this, &ACHANGELINGCharacter::ToggleWalkRun);
+
+		// Camera Zoom (mouse wheel)
+		EnhancedInputComponent->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ACHANGELINGCharacter::Zoom);
+
+		// Toggle 1st/3rd person view (middle mouse button)
+		EnhancedInputComponent->BindAction(ToggleViewAction, ETriggerEvent::Started, this, &ACHANGELINGCharacter::ToggleCameraView);
 	}
 	else
 	{
@@ -132,9 +138,15 @@ void ACHANGELINGCharacter::ZoomCamera(float AxisValue)
 {
 	if (bIsFirstPerson) return; // Disable zoom in first person
 
-	// Adjust target arm length based on input axis value
-	TargetArmLength = FMath::Clamp(TargetArmLength + AxisValue * 20.0f, 100.0f, 600.0f);
+	// Negative step so wheel-up (positive axis) shrinks the arm = zoom IN.
+	TargetArmLength = FMath::Clamp(TargetArmLength - AxisValue * 20.0f, 100.0f, 600.0f);
 	CameraBoom->TargetArmLength = TargetArmLength;
+}
+
+void ACHANGELINGCharacter::Zoom(const FInputActionValue& Value)
+{
+	// Enhanced Input adapter — forward the Axis1D value into the existing zoom logic.
+	ZoomCamera(Value.Get<float>());
 }
 
 void ACHANGELINGCharacter::DoMove(float Right, float Forward)

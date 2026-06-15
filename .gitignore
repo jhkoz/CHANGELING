@@ -21,3 +21,13 @@ Thumbs.db
 
 # ── Megascans / Fab library assets (large, re-importable; kept local, not tracked) ──
 /Content/Megascans/
+/Content/Fab/
+/Content/Developers/
+
+# ── Imported asset / tutorial packs (large, re-importable; kept local, not tracked) ──
+/Content/Ancient_Pillars/
+/Content/TWW_LevelDesign/
+/Content/MSPresets/
+
+# ── Python tooling cache ──
+__pycache__/
