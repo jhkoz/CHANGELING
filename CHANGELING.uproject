@@ -54,6 +54,10 @@
 		{
 			"Name": "PCGWaterInterop",
 			"Enabled": true
+		},
+		{
+			"Name": "GameplayAbilities",
+			"Enabled": true
 		}
 	]
 }
