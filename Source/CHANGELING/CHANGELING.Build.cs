@@ -20,13 +20,21 @@ public class CHANGELING : ModuleRules
 			"UMG",
 			"Slate",
 			"SunPosition",
-			"Niagara"
+			"Niagara",
+			"GameplayAbilities",
+			"GameplayTags",
+			"GameplayTasks",
+			"PhysicsCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"CHANGELING",
+			"CHANGELING/Audio",
+			"CHANGELING/Water",
+			"CHANGELING/Environment",
+			"CHANGELING/GAS",
 			"CHANGELING/Variant_Platforming",
 			"CHANGELING/Variant_Platforming/Animation",
 			"CHANGELING/Variant_Combat",
