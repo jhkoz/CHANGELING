@@ -7,6 +7,7 @@
 #include "CHANGELINGCharacter.h"
 #include "ChangelingAttributeSet.h"
 #include "ChangelingGameplayTags.h"
+#include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
@@ -180,6 +181,7 @@ void UGA_SustainedCantrip::HandleExpired()
 void UGA_SustainedCantrip::BeginSustain(int32 Successes)
 {
 	bSustaining = true;
+	SustainSuccesses = FMath::Max(1, Successes);
 
 	UE_LOG(LogSustainedCantrip, Log, TEXT("LIT: successes=%d duration=%.1fs pose=%d"),
 		Successes, DurationForSuccesses(Successes), static_cast<int32>(SustainedPose));
@@ -235,7 +237,17 @@ void UGA_SustainedCantrip::ScheduleEffectSpawn()
 
 void UGA_SustainedCantrip::SpawnSustainedEffect()
 {
-	if (!bSustaining || !SustainedEffect)
+	if (!bSustaining)
+	{
+		return;
+	}
+
+	// Before the early-out below: the light is not conditional on there being a Niagara
+	// system. A working can legitimately light a room without any visible flame, and a
+	// cantrip whose effect asset is still missing should at least still do its job.
+	SpawnSustainedLight();
+
+	if (!SustainedEffect)
 	{
 		return;
 	}
@@ -270,6 +282,84 @@ void UGA_SustainedCantrip::SpawnSustainedEffect()
 	}
 }
 
+void UGA_SustainedCantrip::SpawnSustainedLight()
+{
+	if (LightRadius <= 0.0f)
+	{
+		return;
+	}
+
+	const ACharacter* Character = Cast<ACharacter>(GetAvatarActorFromActorInfo());
+	USkeletalMeshComponent* Mesh = Character ? Character->GetMesh() : nullptr;
+	if (!Mesh)
+	{
+		return;
+	}
+
+	// Successes past the first extend the reach. A bare success still lights something,
+	// so a marginal casting is dim rather than useless.
+	const int32 Extra = FMath::Max(0, SustainSuccesses - 1);
+	const float Radius = LightRadius + (LightRadiusPerSuccess * Extra);
+
+	// Brightness grows more slowly than radius, on the square root, because doubling a
+	// light's reach does not make it look twice as bright -- scaling both linearly gives
+	// a strong casting that blows out everything within arm's reach.
+	LightBaseIntensity = LightIntensity * FMath::Sqrt(static_cast<float>(SustainSuccesses));
+
+	SustainedLight = NewObject<UPointLightComponent>(Mesh->GetOwner());
+	if (!SustainedLight)
+	{
+		return;
+	}
+
+	// Mobility has to be set before the component is registered; a light that registers
+	// as Static cannot be moved afterwards and would stay where the hand was.
+	SustainedLight->SetMobility(EComponentMobility::Movable);
+	SustainedLight->SetAttenuationRadius(Radius);
+	SustainedLight->SetIntensity(LightBaseIntensity);
+	SustainedLight->SetLightColor(LightColour);
+	SustainedLight->SetCastShadows(bLightCastsShadows);
+
+	SustainedLight->RegisterComponent();
+	SustainedLight->AttachToComponent(Mesh,
+		FAttachmentTransformRules::SnapToTargetIncludingScale, AttachSocket);
+	SustainedLight->SetRelativeLocation(AttachOffset + LightOffset);
+
+	if (LightFlickerAmount > 0.0f)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(FlickerTimer,
+				FTimerDelegate::CreateUObject(this, &UGA_SustainedCantrip::UpdateLightFlicker),
+				1.0f / 30.0f, true);
+		}
+	}
+}
+
+void UGA_SustainedCantrip::UpdateLightFlicker()
+{
+	const UWorld* World = GetWorld();
+	if (!SustainedLight || !World)
+	{
+		return;
+	}
+
+	const float T = World->GetTimeSeconds() * LightFlickerSpeed;
+
+	// Three sines at incommensurate frequencies. One sine reads as a pulse and the eye
+	// finds the period within a second or two; layering ratios that never line up gives
+	// something that stays unpredictable without needing a noise texture.
+	const float Wander =
+		  0.50f * FMath::Sin(T)
+		+ 0.30f * FMath::Sin(T * 2.37f)
+		+ 0.20f * FMath::Sin(T * 5.13f);
+
+	// Floored well above zero: a flame gutters, it does not switch off and back on.
+	const float Scale = FMath::Max(0.35f, 1.0f + (Wander * LightFlickerAmount));
+
+	SustainedLight->SetIntensity(LightBaseIntensity * Scale);
+}
+
 void UGA_SustainedCantrip::StopSustain(bool bRanOut)
 {
 	if (!bSustaining)
@@ -282,6 +372,50 @@ void UGA_SustainedCantrip::StopSustain(bool bRanOut)
 	{
 		World->GetTimerManager().ClearTimer(DurationTimer);
 		World->GetTimerManager().ClearTimer(SpawnDelayTimer);
+		World->GetTimerManager().ClearTimer(FlickerTimer);
+	}
+
+	if (SustainedLight)
+	{
+		// Handed off and forgotten here, exactly as the effect is: the dim-down outlives
+		// this ability, and anything bound to `this` would be torn down mid-ramp and
+		// leave the light snapping to black.
+		UPointLightComponent* Dimming = SustainedLight;
+		SustainedLight = nullptr;
+
+		UWorld* World = GetWorld();
+		if (World && FadeOutSeconds > 0.0f)
+		{
+			const float Start = LightBaseIntensity;
+			const float Duration = FadeOutSeconds;
+			const float Step = 1.0f / 30.0f;
+
+			TSharedRef<float> Elapsed = MakeShared<float>(0.0f);
+			TSharedRef<FTimerHandle> Handle = MakeShared<FTimerHandle>();
+
+			World->GetTimerManager().SetTimer(*Handle,
+				FTimerDelegate::CreateWeakLambda(Dimming,
+					[Dimming, Start, Duration, Step, Elapsed, Handle]()
+					{
+						*Elapsed += Step;
+						const float Alpha = FMath::Clamp(1.0f - (*Elapsed / Duration), 0.0f, 1.0f);
+						Dimming->SetIntensity(Start * Alpha);
+
+						if (Alpha <= 0.0f)
+						{
+							if (UWorld* TimerWorld = Dimming->GetWorld())
+							{
+								TimerWorld->GetTimerManager().ClearTimer(*Handle);
+							}
+							Dimming->DestroyComponent();
+						}
+					}),
+				Step, true);
+		}
+		else
+		{
+			Dimming->DestroyComponent();
+		}
 	}
 
 	if (SustainedComponent)

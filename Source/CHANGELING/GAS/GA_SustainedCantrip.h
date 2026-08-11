@@ -25,6 +25,7 @@
 
 class UNiagaraComponent;
 class UNiagaraSystem;
+class UPointLightComponent;
 
 UCLASS(Abstract, Blueprintable)
 class CHANGELING_API UGA_SustainedCantrip : public UGA_Cantrip
@@ -139,9 +140,80 @@ protected:
 	UFUNCTION(BlueprintPure, Category = "Cantrip|Sustained")
 	float GetRemainingSeconds() const;
 
-	/** Applied for the duration; the natural home for light radius or a warmth aura. */
+	/** Applied for the duration; the natural home for a warmth aura or a Banality ward. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained")
 	TSubclassOf<UGameplayEffect> SustainedGameplayEffect;
+
+	// ── Light ───────────────────────────────────────────────────────────────
+	//
+	// A working that looks like fire but lights nothing is the single clearest way to
+	// tell the player it is not real. Illuminate in particular is only worth casting if
+	// it changes what you can see, so the light is the mechanic and the flame is the
+	// costume -- not the other way round.
+
+	/**
+	 * Radius the working lights, in centimetres, at a bare single success.
+	 *
+	 * Zero means the working casts no light at all, which is the default: most sustained
+	 * cantrips are not torches, and a glamour worn like a coat should not glow.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Light",
+		meta = (ClampMin = "0.0"))
+	float LightRadius = 0.0f;
+
+	/**
+	 * Extra radius per success beyond the first.
+	 *
+	 * The same argument as the duration ladder: the roll that decides whether the light
+	 * kindles should also decide how far it reaches, so holding the cast a beat longer
+	 * pays in something the player can actually see.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Light",
+		meta = (ClampMin = "0.0"))
+	float LightRadiusPerSuccess = 150.0f;
+
+	/** Brightness in the point light's own units. Scales with successes alongside the
+	 *  radius, so a strong casting is brighter as well as further-reaching. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Light",
+		meta = (ClampMin = "0.0"))
+	float LightIntensity = 8.0f;
+
+	/** Warm by default -- firelight, not a torch bulb. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Light")
+	FLinearColor LightColour = FLinearColor(1.0f, 0.72f, 0.36f);
+
+	/**
+	 * How far the brightness wanders, as a fraction. 0 is a dead steady lamp.
+	 *
+	 * Worth having even at small values: a perfectly constant light reads as electric
+	 * however warm its colour, and the flame it is supposed to be coming from is
+	 * visibly moving.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Light",
+		meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float LightFlickerAmount = 0.18f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Light",
+		meta = (ClampMin = "0.0"))
+	float LightFlickerSpeed = 6.5f;
+
+	/**
+	 * Shadow-casting. Off by default and worth leaving off.
+	 *
+	 * A shadowing point light held in the hand re-shadows everything around the caster
+	 * every frame as they walk, which is both the most expensive thing on this class and
+	 * the most likely to shimmer.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Light")
+	bool bLightCastsShadows = false;
+
+	/** Nudge relative to the socket, separate from the effect's. A light sitting exactly
+	 *  in the palm is half-occluded by the hand holding it. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Light")
+	FVector LightOffset = FVector(0.0f, 0.0f, 5.0f);
+
+	/** The light while it burns, for subclasses that want to drive it further. */
+	UPointLightComponent* GetSustainedLight() const { return SustainedLight; }
 
 	/** The attached effect while it runs, for subclasses that drive its parameters. */
 	UNiagaraComponent* GetSustainedComponent() const { return SustainedComponent; }
@@ -172,11 +244,24 @@ private:
 	void HandleExpired();
 	float DurationForSuccesses(int32 Successes) const;
 	void StopSustain(bool bRanOut);
+	void SpawnSustainedLight();
+	void UpdateLightFlicker();
 
 	UPROPERTY() TObjectPtr<UNiagaraComponent> SustainedComponent;
+	UPROPERTY() TObjectPtr<UPointLightComponent> SustainedLight;
 
 	FActiveGameplayEffectHandle SustainedEffectHandle;
 	FTimerHandle DurationTimer;
 	FTimerHandle SpawnDelayTimer;
+	FTimerHandle FlickerTimer;
+
+	/** Successes on the roll that lit this, kept so the light can be sized from it at
+	 *  spawn time -- which happens a beat later than the roll. */
+	int32 SustainSuccesses = 1;
+
+	/** Brightness before flicker is applied, so the flicker is not compounding on its
+	 *  own previous output. */
+	float LightBaseIntensity = 0.0f;
+
 	bool bSustaining = false;
 };

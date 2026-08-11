@@ -157,4 +157,8 @@ private:
 	/** Kept private rather than published: ABP_Unarmed already has a variable of this
 	 *  name, and only bAllowFootIK needs the answer. */
 	bool bIsFalling = false;
+
+	/** Whether this cast ever got as far as opening a channel. Cleared when the cast
+	 *  ends, so it describes the cast in progress and not the one before it. */
+	bool bHasChannelledThisCast = false;
 };

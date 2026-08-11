@@ -65,13 +65,22 @@ void UChangelingAnimInstance::RefreshCantripState()
 
 	bCantripCasting = ASC->HasMatchingGameplayTag(ChangelingTags::Cantrip_State_Casting);
 	bCantripChannelling = ASC->HasMatchingGameplayTag(ChangelingTags::Cantrip_State_Channelling);
-	bCantripRecovering = bCantripCasting && !bCantripChannelling;
+
+	// Not simply "casting but not channelling" -- that is equally true of the WIND-UP,
+	// which has not recovered from anything yet. Recovery is the far side of a channel,
+	// so it needs to remember that one happened.
+	bHasChannelledThisCast |= bCantripChannelling;
+	bCantripRecovering = bCantripCasting && !bCantripChannelling && bHasChannelledThisCast;
 
 	if (!bCantripCasting)
 	{
-		// Deliberately not cleared: the End animation is still playing and still wants
-		// its clips and its intensity. They are replaced wholesale by the next cast.
+		bHasChannelledThisCast = false;
 		ActiveCantrip.Reset();
+
+		// The clips are deliberately left alone: the spellcasting state machine is
+		// still blending out and its sequence players still need something to read.
+		// They are replaced wholesale by the next cast. The intensity does go to zero,
+		// because nothing should still be sounding or burning by now.
 		ChannelIntensity = 0.0f;
 		return;
 	}
