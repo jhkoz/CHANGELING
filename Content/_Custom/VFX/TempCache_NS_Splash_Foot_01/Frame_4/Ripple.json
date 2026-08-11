@@ -1,0 +1,214 @@
+{
+	"NumInstances": 1,
+	"Attributes": [
+		{
+			"Name": "Age",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				0.98329967260360718
+			]
+		},
+		{
+			"Name": "Color",
+			"Type": "LinearColor",
+			"Floats": [
+				[
+					0.75,
+					0.87999999523162842,
+					1,
+					0.97977417707443237
+				]
+			]
+		},
+		{
+			"Name": "DistanceTraveled",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				0
+			]
+		},
+		{
+			"Name": "Initial.Color",
+			"Type": "LinearColor",
+			"Floats": [
+				[
+					0.75,
+					0.87999999523162842,
+					1,
+					1
+				]
+			]
+		},
+		{
+			"Name": "Initial.SpriteSize",
+			"Type": "Vector2f",
+			"Floats": [
+				[
+					10,
+					10
+				]
+			]
+		},
+		{
+			"Name": "Lifetime",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				1.1718440055847168
+			]
+		},
+		{
+			"Name": "Mass",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				1
+			]
+		},
+		{
+			"Name": "MaterialRandom",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				0.38095617294311523
+			]
+		},
+		{
+			"Name": "NormalizedAge",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				0.83910459280014038
+			]
+		},
+		{
+			"Name": "Position",
+			"Type": "NiagaraPosition",
+			"Floats": [
+				[
+					0,
+					0,
+					0
+				]
+			]
+		},
+		{
+			"Name": "Presolve.PhysicsForce",
+			"Type": "Vector3f",
+			"Floats": [
+				[
+					0,
+					0,
+					0
+				]
+			]
+		},
+		{
+			"Name": "Presolve.Position",
+			"Type": "NiagaraPosition",
+			"Floats": [
+				[
+					0,
+					0,
+					0
+				]
+			]
+		},
+		{
+			"Name": "Presolve.Velocity",
+			"Type": "Vector3f",
+			"Floats": [
+				[
+					0,
+					0,
+					0
+				]
+			]
+		},
+		{
+			"Name": "Previous.Position",
+			"Type": "NiagaraPosition",
+			"Floats": [
+				[
+					0,
+					0,
+					0
+				]
+			]
+		},
+		{
+			"Name": "Previous.SpriteFacing",
+			"Type": "Vector3f",
+			"Floats": [
+				[
+					1,
+					0,
+					1
+				]
+			]
+		},
+		{
+			"Name": "Previous.SpriteSize",
+			"Type": "Vector2f",
+			"Floats": [
+				[
+					10,
+					10
+				]
+			]
+		},
+		{
+			"Name": "Previous.Velocity",
+			"Type": "Vector3f",
+			"Floats": [
+				[
+					0,
+					0,
+					0
+				]
+			]
+		},
+		{
+			"Name": "RibbonUVDistance",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				0
+			]
+		},
+		{
+			"Name": "SpriteFacing",
+			"Type": "Vector3f",
+			"Floats": [
+				[
+					1,
+					0,
+					1
+				]
+			]
+		},
+		{
+			"Name": "SpriteSize",
+			"Type": "Vector2f",
+			"Floats": [
+				[
+					10,
+					10
+				]
+			]
+		},
+		{
+			"Name": "UniqueID",
+			"Type": "NiagaraInt32",
+			"Ints": [
+				0
+			]
+		},
+		{
+			"Name": "Velocity",
+			"Type": "Vector3f",
+			"Floats": [
+				[
+					0,
+					0,
+					0
+				]
+			]
+		}
+	]
+}

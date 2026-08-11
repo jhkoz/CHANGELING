@@ -1,0 +1,154 @@
+{
+	"NumInstances": 1,
+	"Attributes": [
+		{
+			"Name": "Emitter.RandomSeed",
+			"Type": "NiagaraInt32",
+			"Ints": [
+				0
+			]
+		},
+		{
+			"Name": "SimpleSpriteBurst.Age",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				2.0500121116638184
+			]
+		},
+		{
+			"Name": "SimpleSpriteBurst.CurrentLoopDuration",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				2
+			]
+		},
+		{
+			"Name": "SimpleSpriteBurst.DistanceTraveled",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				0
+			]
+		},
+		{
+			"Name": "SimpleSpriteBurst.ExecutionState",
+			"Type": "ENiagaraExecutionState",
+			"Ints": [
+				0
+			]
+		},
+		{
+			"Name": "SimpleSpriteBurst.ExecutionStateSource",
+			"Type": "ENiagaraExecutionStateSource",
+			"Ints": [
+				0
+			]
+		},
+		{
+			"Name": "SimpleSpriteBurst.LoopCount",
+			"Type": "NiagaraInt32",
+			"Ints": [
+				1
+			]
+		},
+		{
+			"Name": "SimpleSpriteBurst.LoopedAge",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				0.050012186169624329
+			]
+		},
+		{
+			"Name": "SimpleSpriteBurst.NormalizedLoopAge",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				0.025006093084812164
+			]
+		},
+		{
+			"Name": "SimpleSpriteBurst.Scalability.DistanceFraction",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				7.2823194271866965e-37
+			]
+		},
+		{
+			"Name": "SimpleSpriteBurst.SpawnRate.SpawnOutputInfo",
+			"Type": "NiagaraSpawnInfo",
+			"Floats": [
+				[
+					0.023783605545759201,
+					0.028564453125
+				]
+			],
+			"Ints": [
+				[
+					0,
+					0
+				]
+			]
+		},
+		{
+			"Name": "SimpleSpriteBurst.SpawnRate.SpawnRemainder",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				0.75047051906585693
+			]
+		},
+		{
+			"Name": "System.Age",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				2.0500121116638184
+			]
+		},
+		{
+			"Name": "System.bCompleteOnInactive",
+			"Type": "NiagaraBool",
+			"Ints": [
+				-1
+			]
+		},
+		{
+			"Name": "System.CurrentLoopDuration",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				5
+			]
+		},
+		{
+			"Name": "System.ExecutionState",
+			"Type": "ENiagaraExecutionState",
+			"Ints": [
+				0
+			]
+		},
+		{
+			"Name": "System.ExecutionStateSource",
+			"Type": "ENiagaraExecutionStateSource",
+			"Ints": [
+				0
+			]
+		},
+		{
+			"Name": "System.LoopCount",
+			"Type": "NiagaraInt32",
+			"Ints": [
+				0
+			]
+		},
+		{
+			"Name": "System.LoopedAge",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				2.0500121116638184
+			]
+		},
+		{
+			"Name": "System.NormalizedLoopAge",
+			"Type": "NiagaraFloat",
+			"Floats": [
+				0.41000241041183472
+			]
+		}
+	]
+}

@@ -1,19 +1,48 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CHANGELINGCharacter.h"
+
+#include "Net/UnrealNetwork.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/GameplayAbility.h"
+#include "GAS/ChangelingAbilityTraitSet.h"
+#include "GAS/ChangelingAttributeSet.h"
+#include "GAS/ChangelingMagicSet.h"
 #include "CHANGELING.h"
 
 ACHANGELINGCharacter::ACHANGELINGCharacter()
 {
+	// The raised-hand probe runs here; nothing else on this class needs a tick.
+	PrimaryActorTick.bCanEverTick = true;
+
+	// The ability system and its attribute sets. Created here rather than in a
+	// Blueprint so every character deriving from this class has a working GAS setup
+	// without per-Blueprint wiring -- and so C++ can rely on them existing.
+	AbilitySystem = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystem"));
+	AbilitySystem->SetIsReplicated(true);
+
+	// Mixed: the owning client predicts its own abilities, while simulated proxies
+	// only receive gameplay cues. Right for a player character.
+	AbilitySystem->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
+
+	// Attribute sets register with the ASC simply by being constructed as subobjects
+	// of the same owner; no explicit AddAttributeSetSubobject call is needed.
+	CoreAttributes = CreateDefaultSubobject<UChangelingAttributeSet>(TEXT("CoreAttributes"));
+	AbilityTraits  = CreateDefaultSubobject<UChangelingAbilityTraitSet>(TEXT("AbilityTraits"));
+	MagicTraits    = CreateDefaultSubobject<UChangelingMagicSet>(TEXT("MagicTraits"));
+
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
@@ -189,4 +218,213 @@ void ACHANGELINGCharacter::DoJumpEnd()
 {
 	// signal the character to stop jumping
 	StopJumping();
+}
+
+// ── Gameplay Ability System ──────────────────────────────────────────────────
+
+UAbilitySystemComponent* ACHANGELINGCharacter::GetAbilitySystemComponent() const
+{
+	return AbilitySystem;
+}
+
+void ACHANGELINGCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	// Server side. InitAbilityActorInfo must run before anything is granted, or the
+	// abilities have no avatar to act through.
+	if (AbilitySystem)
+	{
+		AbilitySystem->InitAbilityActorInfo(this, this);
+	}
+	InitialiseAbilitySystem();
+}
+
+void ACHANGELINGCharacter::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+
+	// Client side. Re-initialising here is what gives the local machine a valid
+	// actor info for prediction; without it, client-side ability activation is
+	// silently ignored.
+	if (AbilitySystem)
+	{
+		AbilitySystem->InitAbilityActorInfo(this, this);
+	}
+}
+
+void ACHANGELINGCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// Covers the standalone case, where a character placed in the level is possessed
+	// before BeginPlay and PossessedBy may already have run -- InitialiseAbilitySystem
+	// guards against granting twice.
+	if (AbilitySystem)
+	{
+		AbilitySystem->InitAbilityActorInfo(this, this);
+	}
+	InitialiseAbilitySystem();
+}
+
+void ACHANGELINGCharacter::InitialiseAbilitySystem()
+{
+	if (!AbilitySystem || !HasAuthority())
+	{
+		return;
+	}
+
+	// Granting is idempotent by flag rather than by checking the spec list: a
+	// re-possess (respawn, controller swap) would otherwise hand out a second copy of
+	// every cantrip, and duplicate specs fail in ways that look like input bugs.
+	if (bAbilitiesGranted)
+	{
+		return;
+	}
+	bAbilitiesGranted = true;
+
+	if (DefaultAttributesEffect)
+	{
+		FGameplayEffectContextHandle Context = AbilitySystem->MakeEffectContext();
+		Context.AddSourceObject(this);
+
+		const FGameplayEffectSpecHandle Spec =
+			AbilitySystem->MakeOutgoingSpec(DefaultAttributesEffect, 1.0f, Context);
+
+		if (Spec.IsValid())
+		{
+			AbilitySystem->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+		}
+	}
+
+	for (int32 Index = 0; Index < DefaultAbilities.Num(); ++Index)
+	{
+		if (!DefaultAbilities[Index])
+		{
+			continue;
+		}
+
+		// InputID = array index, so binding an input to a cantrip is a matter of
+		// where it sits in this list rather than a code change per ability.
+		AbilitySystem->GiveAbility(
+			FGameplayAbilitySpec(DefaultAbilities[Index], 1, Index, this));
+	}
+}
+
+void ACHANGELINGCharacter::GetLifetimeReplicatedProps(
+	TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	// Simulated proxies need it too: the raised arm is the whole tell that
+	// someone is holding a working open.
+	DOREPLIFETIME(ACHANGELINGCharacter, CantripPose);
+}
+
+void ACHANGELINGCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	UpdateHandProbe(DeltaSeconds);
+}
+
+void ACHANGELINGCharacter::SetCantripMovementLocked(bool bLocked)
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (!Movement || bCantripMovementLocked == bLocked)
+	{
+		return;
+	}
+
+	// Back to Walking rather than to whatever mode was in force before. Restoring the
+	// remembered one would drop the character back into Falling or Swimming on a frame
+	// where it is demonstrably standing still on solid ground, and the movement
+	// component would have to fall out of that state all over again.
+	Movement->SetMovementMode(bLocked ? MOVE_None : MOVE_Walking);
+	bCantripMovementLocked = bLocked;
+
+	if (bLocked)
+	{
+		// A fresh lock supersedes any recovery still pending from the last cast.
+		bAwaitingCantripRecovery = false;
+		GetWorldTimerManager().ClearTimer(CantripRecoveryTimer);
+	}
+}
+
+void ACHANGELINGCharacter::ReleaseCantripMovementLockOnRecovery(float TimeoutSeconds)
+{
+	if (!bCantripMovementLocked)
+	{
+		return;
+	}
+
+	bAwaitingCantripRecovery = true;
+
+	if (TimeoutSeconds <= 0.0f)
+	{
+		NotifyCantripRecovered();
+		return;
+	}
+
+	GetWorldTimerManager().SetTimer(CantripRecoveryTimer, this,
+		&ACHANGELINGCharacter::NotifyCantripRecovered, TimeoutSeconds, false);
+}
+
+void ACHANGELINGCharacter::NotifyCantripRecovered()
+{
+	// Reached both from the animation and from the timeout, and the animation may
+	// report in for a cast whose lock was already released. Doing nothing unless
+	// something is actually waiting keeps the late notify harmless.
+	if (!bAwaitingCantripRecovery)
+	{
+		return;
+	}
+
+	bAwaitingCantripRecovery = false;
+	GetWorldTimerManager().ClearTimer(CantripRecoveryTimer);
+
+	SetCantripMovementLocked(false);
+}
+
+void ACHANGELINGCharacter::UpdateHandProbe(float DeltaSeconds)
+{
+	// Nothing raised means nothing to correct. Clearing the flag here matters: the arm
+	// lowering must release the IK, or the correction outlives the pose that needed it.
+	if (CantripPose == ECantripPose::None)
+	{
+		bCantripHandBlocked = false;
+		HandProbeAccumulator = 0.0f;
+		return;
+	}
+
+	HandProbeAccumulator += DeltaSeconds;
+	if (HandProbeAccumulator < HandProbeInterval)
+	{
+		return;
+	}
+	HandProbeAccumulator = 0.0f;
+
+	// Named ProbeMesh, not Mesh: ACharacter already has a member called Mesh, and
+	// shadowing it is a warning, which this project compiles as an error.
+	const USkeletalMeshComponent* ProbeMesh = GetMesh();
+	const UWorld* World = GetWorld();
+	if (!ProbeMesh || !World || !ProbeMesh->DoesSocketExist(HandProbeSocket))
+	{
+		bCantripHandBlocked = false;
+		return;
+	}
+
+	// Wider radius to release than to engage. A single threshold flickers: the IK pulls
+	// the hand clear, the next probe finds nothing, the correction drops, the hand goes
+	// back into the wall. Deliberately NOT gated on the character moving -- that hides
+	// the flicker rather than fixing it, and leaves the hand inside walls when standing.
+	const float Radius = bCantripHandBlocked ? HandProbeReleaseRadius : HandProbeEngageRadius;
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(CantripHandProbe), /*bTraceComplex*/ false, this);
+
+	// OverlapAny, not a sweep: the question is "is anything close to the hand", and it
+	// stops at the first hit instead of gathering every overlap it finds.
+	bCantripHandBlocked = World->OverlapAnyTestByChannel(
+		ProbeMesh->GetSocketLocation(HandProbeSocket), FQuat::Identity,
+		HandProbeChannel, FCollisionShape::MakeSphere(Radius), Params);
 }

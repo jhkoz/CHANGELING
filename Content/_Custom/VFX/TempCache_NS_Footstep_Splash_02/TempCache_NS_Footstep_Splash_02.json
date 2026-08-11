@@ -1,0 +1,8 @@
+{
+	"SystemAsset": "/Game/_Custom/VFX/NS_Footstep_Splash.NS_Footstep_Splash",
+	"CacheGuid": "C0BB23BD4676DC5B0C218B999C0DB128",
+	"StartSeconds": 6.6000247001647949,
+	"DurationSeconds": 0.066640853881835938,
+	"NumFrames": 5,
+	"NumEmitters": 3
+}

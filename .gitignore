@@ -24,11 +24,28 @@ Thumbs.db
 /Content/Fab/
 /Content/Developers/
 
-# ── Imported asset / tutorial packs (large, re-importable; kept local, not tracked) ──
-/Content/Ancient_Pillars/
-/Content/TWW_LevelDesign/
+# ── Third-party packs (~51 GB, re-downloadable; kept local, not tracked) ──
+#
+# The reorg consolidated 34 packs under _Packages. Everything here is vendor content
+# that can be re-acquired from Fab or the marketplace, so it stays out of the repo --
+# the alternative is a 51 GB clone for assets nobody edits.
+/Content/_Packages/
+/Content/Megaplant_Library/
 /Content/MSPresets/
-/Content/GemstoneShaders/
 
 # ── Python tooling cache ──
 __pycache__/
+
+# ── Extracted archives / working files that landed in the repo root ──
+/__MACOSX/
+/audiohero_pack_ambiences_wav/
+/audiohero_pack_ambiences_mp3/
+/asset_inventory.xlsx/
+/shadertoolsconfig.json/
+*.zip
+
+# ── Scratch ──
+/Tools/**/output/
+
+# Config backups made while editing
+*.bak-*

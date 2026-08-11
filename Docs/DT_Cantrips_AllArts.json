@@ -1,0 +1,1082 @@
+{
+ "CreepingShadows": {
+  "ArtTag": "Art.Autumn",
+  "ArtLevel": 1,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Creeping Shadows",
+  "Description": "Bend and command nearby shadows to menace or conceal.",
+  "Element": "Water",
+  "Kind": "Instant"
+ },
+ "AutumnEyes": {
+  "ArtTag": "Art.Autumn",
+  "ArtLevel": 2,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Autumn Eyes",
+  "Description": "Perceive what is hidden, decayed, or failing in the target.",
+  "Element": "Water",
+  "Kind": "Instant"
+ },
+ "PoisonedApple": {
+  "ArtTag": "Art.Autumn",
+  "ArtLevel": 3,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "The Poisoned Apple",
+  "Description": "Imbue food or drink with baleful, poisoning glamour.",
+  "Element": "Water",
+  "Kind": "Instant"
+ },
+ "TheWithering": {
+  "ArtTag": "Art.Autumn",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "The Withering",
+  "Description": "Age and wither the target toward ruin.",
+  "Element": "Water",
+  "Kind": "Instant"
+ },
+ "Shivers": {
+  "ArtTag": "Art.Autumn",
+  "ArtLevel": 5,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Shivers",
+  "Description": "Mark a target as a beacon for the restless dead.",
+  "Element": "Water",
+  "Kind": "Instant"
+ },
+ "TrickOfTheLight": {
+  "ArtTag": "Art.Chicanery",
+  "ArtLevel": 1,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Trick of the Light",
+  "Description": "Nudge perception so one thing is mistaken for another.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "VeiledEyes": {
+  "ArtTag": "Art.Chicanery",
+  "ArtLevel": 2,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Veiled Eyes",
+  "Description": "Make the subject overlooked and ignored.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "DreamLogic": {
+  "ArtTag": "Art.Chicanery",
+  "ArtLevel": 3,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Dream Logic",
+  "Description": "Cloud minds with dreamlike, disjointed reasoning.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "VeiledMind": {
+  "ArtTag": "Art.Chicanery",
+  "ArtLevel": 4,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Veiled Mind",
+  "Description": "Steal memories or hide knowledge from a mind.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "LostInTheMists": {
+  "ArtTag": "Art.Chicanery",
+  "ArtLevel": 5,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Lost in the Mists",
+  "Description": "Strand the target’s awareness deep in the Mists.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "BackwardGlance": {
+  "ArtTag": "Art.Chronos",
+  "ArtLevel": 1,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Backward Glance",
+  "Description": "Glimpse the recent past of a place or thing.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "EffectAndCause": {
+  "ArtTag": "Art.Chronos",
+  "ArtLevel": 2,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Effect and Cause",
+  "Description": "Scatter the ordinary order of cause and effect.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "SetInStone": {
+  "ArtTag": "Art.Chronos",
+  "ArtLevel": 3,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Set in Stone",
+  "Description": "Halt the flow of time around the target.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "DejaVu": {
+  "ArtTag": "Art.Chronos",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Déjà Vu",
+  "Description": "Trap the target reliving the same moments.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "TimeDilation": {
+  "ArtTag": "Art.Chronos",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Time Dilation",
+  "Description": "Push the target forward through time.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "DoneDeal": {
+  "ArtTag": "Art.Contract",
+  "ArtLevel": 1,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Done Deal",
+  "Description": "Seal a bargain the Dreaming itself enforces.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "LiarsBell": {
+  "ArtTag": "Art.Contract",
+  "ArtLevel": 2,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Liar’s Bell",
+  "Description": "Know at once when a sworn word is broken.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "Castigate": {
+  "ArtTag": "Art.Contract",
+  "ArtLevel": 3,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Castigate",
+  "Description": "Call down punishment upon an oathbreaker.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "CasualContract": {
+  "ArtTag": "Art.Contract",
+  "ArtLevel": 4,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Casual Contract",
+  "Description": "Bind even offhand agreements with faerie weight.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "SanctifiedWords": {
+  "ArtTag": "Art.Contract",
+  "ArtLevel": 5,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Sanctified Words",
+  "Description": "Weave glamour boons into a formal contract.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "BurningThew": {
+  "ArtTag": "Art.DragonsIre",
+  "ArtLevel": 1,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Burning Thew",
+  "Description": "Channel draconic might into feats of strength.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "ConfoundingCoils": {
+  "ArtTag": "Art.DragonsIre",
+  "ArtLevel": 2,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Confounding Coils",
+  "Description": "Weave serpentine grace that turns aside blows.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "Dragonscales": {
+  "ArtTag": "Art.DragonsIre",
+  "ArtLevel": 3,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Dragonscales",
+  "Description": "Harden hide or garb into scaled armour.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "HollyStrike": {
+  "ArtTag": "Art.DragonsIre",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Holly-Strike",
+  "Description": "Lash out with cracking, stinging force.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "TrippingTheIre": {
+  "ArtTag": "Art.DragonsIre",
+  "ArtLevel": 5,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Tripping the Ire",
+  "Description": "Unleash the dragon’s wrath on those who provoke it.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "Ensnare": {
+  "ArtTag": "Art.Legerdemain",
+  "ArtLevel": 1,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Ensnare",
+  "Description": "Snag, trip, or tangle a target from afar.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "Mooch": {
+  "ArtTag": "Art.Legerdemain",
+  "ArtLevel": 2,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Mooch",
+  "Description": "Filch small things unseen into your hand.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "Effigy": {
+  "ArtTag": "Art.Legerdemain",
+  "ArtLevel": 3,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Effigy",
+  "Description": "Conjure a glamour copy of a thing.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "Gimmix": {
+  "ArtTag": "Art.Legerdemain",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Gimmix",
+  "Description": "Move and manipulate objects at a distance.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "SmokeAndMirrors": {
+  "ArtTag": "Art.Legerdemain",
+  "ArtLevel": 5,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Smoke and Mirrors",
+  "Description": "Craft full illusions that walk and speak.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "SparrowsAndNightingales": {
+  "ArtTag": "Art.Metamorphosis",
+  "ArtLevel": 1,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Sparrows and Nightingales",
+  "Description": "Work small cosmetic changes of face and form.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "WormsAndGiants": {
+  "ArtTag": "Art.Metamorphosis",
+  "ArtLevel": 2,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Worms and Giants",
+  "Description": "Shrink or enlarge the subject.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "Thousandskins": {
+  "ArtTag": "Art.Metamorphosis",
+  "ArtLevel": 3,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Thousandskins",
+  "Description": "Take the shape of beasts.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "Beastskin": {
+  "ArtTag": "Art.Metamorphosis",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Beastskin",
+  "Description": "Borrow single bestial features in partial change.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "ChimericExultation": {
+  "ArtTag": "Art.Metamorphosis",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Chimeric Exultation",
+  "Description": "Transform into a wonder of living chimera.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "BetweenTheLines": {
+  "ArtTag": "Art.Naming",
+  "ArtLevel": 1,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Between the Lines",
+  "Description": "Read the truths written beneath surfaces.",
+  "Element": "Quintessence",
+  "Kind": "Instant"
+ },
+ "Nickname": {
+  "ArtTag": "Art.Naming",
+  "ArtLevel": 2,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Nickname",
+  "Description": "Bind a working name onto a subject.",
+  "Element": "Quintessence",
+  "Kind": "Instant"
+ },
+ "Saining": {
+  "ArtTag": "Art.Naming",
+  "ArtLevel": 3,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Saining",
+  "Description": "Discern the True Name of the subject.",
+  "Element": "Quintessence",
+  "Kind": "Instant"
+ },
+ "RunicImprint": {
+  "ArtTag": "Art.Naming",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Runic Imprint",
+  "Description": "Inscribe runes of power onto things.",
+  "Element": "Quintessence",
+  "Kind": "Instant"
+ },
+ "Reweaving": {
+  "ArtTag": "Art.Naming",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Reweaving",
+  "Description": "Rewrite a True Name and remake its bearer.",
+  "Element": "Quintessence",
+  "Kind": "Instant"
+ },
+ "DreamWalk": {
+  "ArtTag": "Art.Oneiromancy",
+  "ArtLevel": 1,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Dream Walk",
+  "Description": "Enter and walk the dreams of a sleeper.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "DreamCraft": {
+  "ArtTag": "Art.Oneiromancy",
+  "ArtLevel": 2,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Dream Craft",
+  "Description": "Shape a dream’s content and tone.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "DreamPortal": {
+  "ArtTag": "Art.Oneiromancy",
+  "ArtLevel": 3,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Dream Portal",
+  "Description": "Step between distant places through dream.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "Manifest": {
+  "ArtTag": "Art.Oneiromancy",
+  "ArtLevel": 4,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Manifest",
+  "Description": "Draw dream-stuff into the waking world.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "DreamPuppet": {
+  "ArtTag": "Art.Oneiromancy",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Dream Puppet",
+  "Description": "Rule a dreamer through their dreams.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "WillowWhisper": {
+  "ArtTag": "Art.Primal",
+  "ArtLevel": 1,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Willow Whisper",
+  "Description": "Speak with plants and hear their answers.",
+  "Element": "Earth",
+  "Kind": "Instant"
+ },
+ "EldritchPrime": {
+  "ArtTag": "Art.Primal",
+  "ArtLevel": 2,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Eldritch Prime",
+  "Description": "Conjure raw manifestations of the elements.",
+  "Element": "Earth",
+  "Kind": "Instant"
+ },
+ "Oakenshield": {
+  "ArtTag": "Art.Primal",
+  "ArtLevel": 3,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Oakenshield",
+  "Description": "Harden the subject like living stone or oak.",
+  "Element": "Earth",
+  "Kind": "Instant"
+ },
+ "ElderForm": {
+  "ArtTag": "Art.Primal",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Elder-Form",
+  "Description": "Assume an elemental form of earth or wood.",
+  "Element": "Earth",
+  "Kind": "Instant"
+ },
+ "DanceOfTheFiveKings": {
+  "ArtTag": "Art.Primal",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Dance of the Five Kings",
+  "Description": "Command the five elements as one.",
+  "Element": "Earth",
+  "Kind": "Instant"
+ },
+ "Kindle": {
+  "ArtTag": "Art.Pyretics",
+  "ArtLevel": 1,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Kindle",
+  "Description": "Heat and ignite small things at a touch.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "Illuminate": {
+  "ArtTag": "Art.Pyretics",
+  "ArtLevel": 2,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Illuminate",
+  "Description": "Hold cold faerie light kindled in the palm.",
+  "Element": "Fire",
+  "Kind": "Sustained"
+ },
+ "Purify": {
+  "ArtTag": "Art.Pyretics",
+  "ArtLevel": 3,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Purify",
+  "Description": "Burn away impurity and contamination.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "Engulf": {
+  "ArtTag": "Art.Pyretics",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Engulf",
+  "Description": "Set the target ablaze.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "PhoenixSong": {
+  "ArtTag": "Art.Pyretics",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Phoenix Song",
+  "Description": "Destroy in flame so that renewal may rise.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "HowlingGale": {
+  "ArtTag": "Art.Skycraft",
+  "ArtLevel": 1,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Howling Gale",
+  "Description": "Call and command the wind.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "ElectricGremlins": {
+  "ArtTag": "Art.Skycraft",
+  "ArtLevel": 2,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Electric Gremlins",
+  "Description": "Foul or command electricity and machines.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "HurricaneSpeed": {
+  "ArtTag": "Art.Skycraft",
+  "ArtLevel": 3,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Hurricane Speed",
+  "Description": "Move with the impossible swiftness of the wind.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "StormShroud": {
+  "ArtTag": "Art.Skycraft",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Storm Shroud",
+  "Description": "Wrap the subject in crackling storm.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "LordOfLevin": {
+  "ArtTag": "Art.Skycraft",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Lord of Levin",
+  "Description": "Call down lightning from the heavens.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "Omen": {
+  "ArtTag": "Art.Soothsay",
+  "ArtLevel": 1,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Omen",
+  "Description": "Read a subject’s immediate thread of fate.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "SeersWisp": {
+  "ArtTag": "Art.Soothsay",
+  "ArtLevel": 2,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Seer’s Wisp",
+  "Description": "Conjure a guiding light toward what is sought.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "Tattletale": {
+  "ArtTag": "Art.Soothsay",
+  "ArtLevel": 3,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Tattletale",
+  "Description": "Scry distant scenes through a linked thing.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "Augury": {
+  "ArtTag": "Art.Soothsay",
+  "ArtLevel": 4,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Augury",
+  "Description": "Put a question to fate and hear its answer.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "FateFire": {
+  "ArtTag": "Art.Soothsay",
+  "ArtLevel": 5,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Fate Fire",
+  "Description": "Bless or curse a thread of Dán.",
+  "Element": "None",
+  "Kind": "Instant"
+ },
+ "Protocol": {
+  "ArtTag": "Art.Sovereign",
+  "ArtLevel": 1,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Protocol",
+  "Description": "Compel courtly propriety and due respect.",
+  "Element": "Quintessence",
+  "Kind": "Instant"
+ },
+ "Grandeur": {
+  "ArtTag": "Art.Sovereign",
+  "ArtLevel": 2,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Grandeur",
+  "Description": "Awe all who behold the caster.",
+  "Element": "Quintessence",
+  "Kind": "Instant"
+ },
+ "GuestList": {
+  "ArtTag": "Art.Sovereign",
+  "ArtLevel": 3,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Guest List",
+  "Description": "Bar entry and use to the uninvited.",
+  "Element": "Quintessence",
+  "Kind": "Instant"
+ },
+ "Dictum": {
+  "ArtTag": "Art.Sovereign",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Dictum",
+  "Description": "Command obedience by right of title.",
+  "Element": "Quintessence",
+  "Kind": "Instant"
+ },
+ "Geas": {
+  "ArtTag": "Art.Sovereign",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Geas",
+  "Description": "Lay a quest or ban upon a target.",
+  "Element": "Quintessence",
+  "Kind": "Instant"
+ },
+ "Awaken": {
+  "ArtTag": "Art.Spring",
+  "ArtLevel": 1,
+  "Manifestation": "Either",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Awaken",
+  "Description": "Rouse seeds and sleeping life to sudden growth.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "VerdantReclamation": {
+  "ArtTag": "Art.Spring",
+  "ArtLevel": 2,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Verdant Reclamation",
+  "Description": "Let growing things reclaim the made world.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "WellOfLife": {
+  "ArtTag": "Art.Spring",
+  "ArtLevel": 3,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Well of Life",
+  "Description": "Draw healing from the waters of life.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "FaerieRing": {
+  "ArtTag": "Art.Spring",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Faerie Ring",
+  "Description": "Raise a ring of protection and passage.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "Renewal": {
+  "ArtTag": "Art.Spring",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Renewal",
+  "Description": "Resurrect life as spring thaws the world.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "FlickerFlies": {
+  "ArtTag": "Art.Summer",
+  "ArtLevel": 1,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Flicker-Flies",
+  "Description": "Conjure dancing summer lights.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "Enkindle": {
+  "ArtTag": "Art.Summer",
+  "ArtLevel": 2,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Enkindle",
+  "Description": "Kindle chosen passions in a heart.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "Aphrodisia": {
+  "ArtTag": "Art.Summer",
+  "ArtLevel": 3,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Aphrodisia",
+  "Description": "Inflame desire and attraction.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "VestasBlessing": {
+  "ArtTag": "Art.Summer",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Vesta’s Blessing",
+  "Description": "Sanctify hearth and home against harm.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "BeltaneBlade": {
+  "ArtTag": "Art.Summer",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "The Beltane Blade",
+  "Description": "Purge taint and corruption with summer’s blade.",
+  "Element": "Fire",
+  "Kind": "Instant"
+ },
+ "Hopscotch": {
+  "ArtTag": "Art.Wayfare",
+  "ArtLevel": 1,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Hopscotch",
+  "Description": "Leap prodigious heights and distances.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "Quicksilver": {
+  "ArtTag": "Art.Wayfare",
+  "ArtLevel": 2,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Quicksilver",
+  "Description": "Move as a blur of impossible speed.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "PortalPassage": {
+  "ArtTag": "Art.Wayfare",
+  "ArtLevel": 3,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Portal Passage",
+  "Description": "Open doors where none exist.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "WindRunner": {
+  "ArtTag": "Art.Wayfare",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Wind Runner",
+  "Description": "Ride the air in true flight.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "FlickerFlash": {
+  "ArtTag": "Art.Wayfare",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Flicker Flash",
+  "Description": "Step instantly from place to place.",
+  "Element": "Air",
+  "Kind": "Instant"
+ },
+ "Chill": {
+  "ArtTag": "Art.Winter",
+  "ArtLevel": 1,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Chill",
+  "Description": "Leach the warmth from the world nearby.",
+  "Element": "Earth",
+  "Kind": "Instant"
+ },
+ "HardenedHeart": {
+  "ArtTag": "Art.Winter",
+  "ArtLevel": 2,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Hardened Heart",
+  "Description": "Numb a heart against feeling and mercy.",
+  "Element": "Earth",
+  "Kind": "Instant"
+ },
+ "TerrorOfTheLongNight": {
+  "ArtTag": "Art.Winter",
+  "ArtLevel": 3,
+  "Manifestation": "Chimerical",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Terror of the Long Night",
+  "Description": "Instill the deep fear of endless winter dark.",
+  "Element": "Earth",
+  "Kind": "Instant"
+ },
+ "Sculpt": {
+  "ArtTag": "Art.Winter",
+  "ArtLevel": 4,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Sculpt",
+  "Description": "Conjure ice and shape it at will.",
+  "Element": "Earth",
+  "Kind": "Instant"
+ },
+ "Stasis": {
+  "ArtTag": "Art.Winter",
+  "ArtLevel": 5,
+  "Manifestation": "Wyrd",
+  "AllowedRealms": [
+   "Actor"
+  ],
+  "DisplayName": "Stasis",
+  "Description": "Seal the target in frost outside time.",
+  "Element": "Earth",
+  "Kind": "Instant"
+ }
+}
