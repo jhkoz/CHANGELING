@@ -4,6 +4,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
+#include "CantripInternal.h"
 #include "CantripResolver.h"
 #include "ChangelingAttributeSet.h"
 #include "ChangelingGameplayTags.h"
@@ -15,43 +16,8 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogCantripAbility, Log, All);
 
-namespace
-{
-	/** Property name on UChangelingMagicSet backing a Realm. */
-	FName RealmPropertyName(ECantripRealm Realm)
-	{
-		switch (Realm)
-		{
-		case ECantripRealm::Fae:    return TEXT("Fae");
-		case ECantripRealm::Actor:  return TEXT("Actor");
-		case ECantripRealm::Nature: return TEXT("Nature");
-		case ECantripRealm::Prop:   return TEXT("Prop");
-		case ECantripRealm::Time:   return TEXT("Time");
-		case ECantripRealm::Scene:  return TEXT("Scene");
-		default:                    return NAME_None;
-		}
-	}
-
-	/**
-	 * "Art.Wayfare" -> "Wayfare".
-	 *
-	 * Derived from the tag rather than kept in a parallel lookup table: a table is
-	 * one more thing to forget when the nineteenth Art arrives, and it fails
-	 * silently when it drifts.
-	 */
-	FName ArtPropertyNameFromTag(const FGameplayTag& ArtTag)
-	{
-		if (!ArtTag.IsValid())
-		{
-			return NAME_None;
-		}
-
-		FString Path = ArtTag.GetTagName().ToString();
-		FString Leaf;
-		return Path.Split(TEXT("."), nullptr, &Leaf, ESearchCase::CaseSensitive,
-			ESearchDir::FromEnd) ? FName(*Leaf) : FName(*Path);
-	}
-}
+using CantripInternal::RealmPropertyName;
+using CantripInternal::ArtPropertyNameFromTag;
 
 UGA_Cantrip::UGA_Cantrip()
 {

@@ -24,16 +24,20 @@ Part 1 has one gotcha that will stop the compile until you handle it.
 
 # Part 0 — Split the animation into three clips
 
-You already have `Standing2HMagicAttack04_UE` retargeted in
-`Content/Characters/Mannequins/Anims/Unarmed/Mixamo/`. It is one full-length clip. The
+We are using **Standing 2H Magic Attack 03**, which is **129 frames / 4.30 seconds** at
+30fps. You already have it retargeted as `Standing2HMagicAttack03_UE` in
+`Content/Characters/Mannequins/Anims/Unarmed/Mixamo/`, but as one full-length clip. The
 state machine needs three, because the middle has to repeat indefinitely while the two
 ends play exactly once.
+
+Attack 04, which the tutorial uses, is 100 frames / 3.33s — so **every frame number the
+video quotes is about 29% short for our clip.**
 
 ## 0.1 Download three trimmed copies from Mixamo
 
 1. Go to mixamo.com, sign in, and make sure `SK_Mannequin` from the Mixamo Converter is
    still your uploaded character.
-2. Search for **Standing 2H Magic Attack 04** and select it.
+2. Search for **Standing 2H Magic Attack 03** and select it.
 3. Under the preview there is a **trim** control with two handles and a frame counter.
 
 Download it three times, adjusting the trim each time. For every download use:
@@ -44,13 +48,27 @@ Download it three times, adjusting the trim each time. For every download use:
 
 | Download | Trim from | Trim to | Save as |
 |---|---|---|---|
-| 1 | 0 | 30 | `Cantrip_Channel_Begin.fbx` |
-| 2 | 33 | 77 | `Cantrip_Channel_Loop.fbx` |
-| 3 | 78 | 94 | `Cantrip_Channel_End.fbx` |
+| 1 | 0 | ~39 | `Cantrip_Channel_Begin.fbx` |
+| 2 | ~43 | ~99 | `Cantrip_Channel_Loop.fbx` |
+| 3 | ~101 | ~121 | `Cantrip_Channel_End.fbx` |
+
+**These are scaled from the tutorial's numbers, not read off the clip — I can measure its
+length but not watch it, so treat them as a starting point and confirm by scrubbing.**
+What you are actually looking for:
+
+- **Begin ends** at the frame where the arms reach the forward extended pose and stop
+  travelling. Slightly late is better than slightly early — a wind-up cut short pops.
+- **Loop** is the span where the body is only churning in place. Its **first and last
+  frames should be as close to the same pose as you can get**; everything else about the
+  loop is easier to fix than that. Leave a couple of frames of gap after Begin.
+- **End starts** where the arms first begin to withdraw and runs until the body settles.
+  Stop before any final idle settle at the very end of the clip.
 
 On download 2, scrub the preview before downloading — it should read as a continuous
 churn with no obvious start or stop. You will see it jump when it cycles; ignore that,
 Part 2 fixes it in the graph.
+
+Note the length of your Begin clip once it is imported — Part 7 uses it.
 
 ## 0.2 Through the Mixamo Converter
 
@@ -225,13 +243,33 @@ rule.
 
 | # | From → To | Rule to build |
 |---|---|---|
-| 1 | Cantrip Idle → Channel Begin | `bCantripChannelling` → Can Enter Transition |
-| 2 | Channel Begin → Channel Loop A | time-remaining rule (below) |
-| 3 | Channel Loop A → Channel Loop B | time-remaining rule |
+| 1 | Cantrip Idle → Channel Begin | `bCantripCasting` → Can Enter Transition |
+| 2 | Channel Begin → Channel Loop A | `bCantripChannelling` → Can Enter Transition |
+| 3 | Channel Loop A → Channel Loop B | time-remaining rule (below) |
 | 4 | Channel Loop B → Channel Loop A | time-remaining rule |
-| 5 | Channel Loop A → Channel End | `bCantripChannelling` → **NOT Boolean** → Can Enter |
-| 6 | Channel Loop B → Channel End | `bCantripChannelling` → **NOT Boolean** → Can Enter |
+| 5 | Channel Loop A → Channel End | `bCantripRecovering` → Can Enter Transition |
+| 6 | Channel Loop B → Channel End | `bCantripRecovering` → Can Enter Transition |
 | 7 | Channel End → Cantrip Idle | time-remaining rule |
+| 8 | Channel Begin → Cantrip Idle | `bCantripCasting` → **NOT Boolean** → Can Enter |
+
+Three of those are worth understanding rather than just copying, because the obvious
+versions all race:
+
+- **#1 uses `bCantripCasting`, not `bCantripChannelling`.** The wind-up gesture has to
+  play *while* you are building the cast. Channelling does not become true until the roll
+  resolves, so keying the wind-up off it would leave the character standing still through
+  the entire hold and then playing the wind-up after the flame was already lit.
+- **#2 uses `bCantripChannelling` with no time check.** The Begin clip and the cast ladder
+  are different lengths and neither is authoritative. With loop off, whichever finishes
+  first simply waits: if the clip ends early the character holds the completed gesture
+  until the working opens, which is exactly right.
+- **#5 and #6 use `bCantripRecovering`, not `NOT bCantripChannelling`.** "Not channelling"
+  is equally true *before* the working ever opens, so on any frame where the loop is
+  entered a moment before the roll lands, the End animation would fire instantly and the
+  cast would collapse. `bCantripRecovering` is false until a channel has actually opened.
+- **#8 is the abandoned wind-up** — you let go before the flame appeared. Without it the
+  inner state machine stays parked in Channel Begin and the next cast starts from the
+  wrong state.
 
 **The time-remaining rule**, built identically each time:
 
@@ -610,6 +648,29 @@ is nothing to wire.
 
 5. Compile and save.
 
+## 7.1a Match the cast ladder to the gesture
+
+By default the working opens at the end of the cast ladder, which is **4.2 seconds**. Your
+Begin clip is roughly **1.3 seconds**. Left alone, the character completes the gesture and
+then holds the finished pose for another three seconds before anything ignites.
+
+Open `DT_Cantrips`, row `Pyretics_1`, expand **Cast Tiers → Tier Thresholds**, and set the
+five entries to fit inside the Begin clip — for a 1.3s gesture:
+
+```
+0.25, 0.5, 0.8, 1.05, 1.3
+```
+
+Now the flame kindles on the frame the arms finish coming forward.
+
+If you would rather keep the long ladder and just have the flame appear earlier, set
+**Channel Opens After Seconds** on the ability instead — it overrides the ladder for
+timing purposes only.
+
+Either way the ordering is safe: the C++ latches the animation's effect-start cue, so
+whichever of the gesture and the roll finishes second is the one that spawns the flame.
+Getting this wrong costs you a pause, not a broken cantrip.
+
 ## 7.2 The table row
 
 6. Open `DT_Cantrips` and find row `Pyretics_1`.
@@ -698,6 +759,9 @@ Work down this list in order. Each step isolates one part.
 | Fire passes through the character or through walls | A **CPU Collision Trace Channel** left on World Dynamic instead of `Pawn` |
 | Character twitches every couple of seconds while channelling | Loop A/B ping-pong not set up, or Loop B missing Play Rate −1 / Start Position 1.0 |
 | Feet float during the cast | Part 9 not done |
+| Gesture completes, then a long wait before the flame | Cast ladder longer than the Begin clip — Part 7.1a |
+| Wind-up never plays; character stands still then the flame appears | Transition #1 keyed off `bCantripChannelling` instead of `bCantripCasting` |
+| End animation fires the instant the loop starts | Transitions #5/#6 keyed off `NOT bCantripChannelling` instead of `bCantripRecovering` |
 | Cast does nothing and the log mentions a row | `Cantrip Row` does not match a row name in `DT_Cantrips` |
 
 ---

@@ -5,6 +5,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 #include "CHANGELINGCharacter.h"
+#include "CantripInternal.h"
 #include "ChangelingAttributeSet.h"
 #include "ChangelingGameplayTags.h"
 #include "Components/PointLightComponent.h"
@@ -17,25 +18,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogSustainedCantrip, Log, All);
 
-namespace
-{
-	/** The ASC may hang off the actor or be reached through the interface. */
-	UAbilitySystemComponent* ResolveASC(AActor* Avatar)
-	{
-		if (!Avatar)
-		{
-			return nullptr;
-		}
-
-		if (UAbilitySystemComponent* Found = Avatar->FindComponentByClass<UAbilitySystemComponent>())
-		{
-			return Found;
-		}
-
-		const IAbilitySystemInterface* Interface = Cast<IAbilitySystemInterface>(Avatar);
-		return Interface ? Interface->GetAbilitySystemComponent() : nullptr;
-	}
-}
+using CantripInternal::ResolveASC;
 
 UGA_SustainedCantrip::UGA_SustainedCantrip()
 {

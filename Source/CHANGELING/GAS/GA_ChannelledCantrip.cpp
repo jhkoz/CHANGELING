@@ -56,6 +56,14 @@ void UGA_ChannelledCantrip::ActivateAbility(const FGameplayAbilitySpecHandle Han
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
+	bEffectStartSeen = false;
+
+	// Listening from activation, not from the moment the working opens. The wind-up
+	// animation finishes when the clip finishes; the roll resolves when the cast ladder
+	// says so. Either can come first, and a listener registered on the second of them
+	// would simply miss a cue that had already gone past.
+	ListenForEffectStart();
+
 	// A channel does not wait for the key to come up before it resolves -- the key
 	// coming up is what ENDS it. So the working opens on the gesture completing
 	// instead, and holding from there simply keeps it open.
@@ -200,24 +208,43 @@ void UGA_ChannelledCantrip::PostResolve(const FCantripOutcome& Outcome, const FC
 	SampleIntensity();
 }
 
-void UGA_ChannelledCantrip::ScheduleEffectSpawn()
+void UGA_ChannelledCantrip::ListenForEffectStart()
 {
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
 	UWorld* World = GetWorld();
 
-	if (!ASC || !World)
+	if (!ASC || !World || EffectStartDelegate.IsValid())
 	{
-		Super::ScheduleEffectSpawn();
 		return;
 	}
 
 	EffectStartDelegate = ASC->GenericGameplayEventCallbacks
 		.FindOrAdd(ChangelingTags::Cantrip_Event_EffectStart)
 		.AddUObject(this, &UGA_ChannelledCantrip::HandleEffectStartEvent);
+}
 
-	// The deadline exists so that a cantrip with no animation yet, or one whose notify
-	// was never placed, still produces its effect. Being a fifth of a second early is a
-	// tuning problem; never appearing at all reads as the cantrip being broken.
+void UGA_ChannelledCantrip::ScheduleEffectSpawn()
+{
+	// The gesture already landed while the cast was still building, so there is nothing
+	// left to wait for.
+	if (bEffectStartSeen)
+	{
+		SpawnSustainedEffect();
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		Super::ScheduleEffectSpawn();
+		return;
+	}
+
+	ListenForEffectStart();
+
+	// The deadline exists so that a cantrip with no animation yet, or one whose event
+	// name was never set, still produces its effect. Being a fraction of a second late
+	// is a tuning problem; never appearing at all reads as the cantrip being broken.
 	if (EffectStartTimeout > 0.0f)
 	{
 		World->GetTimerManager().SetTimer(EffectStartFallbackTimer,
@@ -229,11 +256,15 @@ void UGA_ChannelledCantrip::ScheduleEffectSpawn()
 
 void UGA_ChannelledCantrip::HandleEffectStartEvent(const FGameplayEventData* /*Payload*/)
 {
+	bEffectStartSeen = true;
+
 	// Whichever of the cue and the deadline arrives first wins; the other is discarded
-	// by unsubscribing here rather than by a guard flag that could survive a reuse of
-	// this instance.
+	// by unsubscribing rather than by a guard that could survive a reuse of this
+	// instance.
 	StopListeningForEffectStart();
 
+	// Only spawns if the working is actually open. If the gesture finished first, the
+	// latch above means BeginSustain will spawn the moment the roll resolves.
 	if (IsSustaining())
 	{
 		SpawnSustainedEffect();

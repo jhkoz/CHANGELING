@@ -180,6 +180,7 @@ private:
 	void SampleIntensity();
 	void SetMovementLocked(bool bLocked);
 	void HandleEffectStartEvent(const FGameplayEventData* Payload);
+	void ListenForEffectStart();
 	void StopListeningForEffectStart();
 
 	UPROPERTY() TObjectPtr<UAudioComponent> ChannelAudio;
@@ -190,4 +191,13 @@ private:
 	FDelegateHandle EffectStartDelegate;
 	float CurrentIntensity = 1.0f;
 	bool bMovementLocked = false;
+
+	/**
+	 * The animation has already said the gesture landed.
+	 *
+	 * Latched rather than acted on directly, because the cue routinely arrives BEFORE
+	 * the working opens: the wind-up animation finishes when it finishes, and the roll
+	 * resolves when the cast ladder says so. Whichever happens second does the spawning.
+	 */
+	bool bEffectStartSeen = false;
 };

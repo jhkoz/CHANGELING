@@ -4,45 +4,17 @@
 
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
+#include "CantripInternal.h"
 #include "CantripResolver.h"
 #include "ChangelingMagicSet.h"
 #include "Engine/DataTable.h"
 #include "GA_Cantrip.h"
 
+using CantripInternal::ResolveASC;
+using CantripInternal::RealmPropertyName;
+
 namespace
 {
-	UAbilitySystemComponent* ResolveASC(AActor* Avatar)
-	{
-		if (!Avatar)
-		{
-			return nullptr;
-		}
-
-		if (UAbilitySystemComponent* Found = Avatar->FindComponentByClass<UAbilitySystemComponent>())
-		{
-			return Found;
-		}
-
-		const IAbilitySystemInterface* Interface = Cast<IAbilitySystemInterface>(Avatar);
-		return Interface ? Interface->GetAbilitySystemComponent() : nullptr;
-	}
-
-	/** Property name on UChangelingMagicSet backing a Realm. Matches GA_Cantrip's
-	 *  switch deliberately -- enum DISPLAY names contain spaces and never resolve. */
-	FName RealmPropertyName(ECantripRealm Realm)
-	{
-		switch (Realm)
-		{
-		case ECantripRealm::Fae:    return TEXT("Fae");
-		case ECantripRealm::Actor:  return TEXT("Actor");
-		case ECantripRealm::Nature: return TEXT("Nature");
-		case ECantripRealm::Prop:   return TEXT("Prop");
-		case ECantripRealm::Time:   return TEXT("Time");
-		case ECantripRealm::Scene:  return TEXT("Scene");
-		default:                    return NAME_None;
-		}
-	}
-
 	/** "Art.Wayfare" -> the Wayfare attribute's current value, or 0. */
 	int32 ReadArtRating(const UAbilitySystemComponent* ASC, const FGameplayTag& ArtTag)
 	{
