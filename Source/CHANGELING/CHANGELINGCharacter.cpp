@@ -339,11 +339,41 @@ void ACHANGELINGCharacter::SetAiming(bool bNewAiming)
 	// character spin on the spot every time the camera moved.
 }
 
+void ACHANGELINGCharacter::ClampAimCamera()
+{
+	AController* OwningController = GetController();
+	if (!bAiming || CameraYawLimitWhileAiming <= 0.0f || !OwningController)
+	{
+		return;
+	}
+
+	FRotator Control = OwningController->GetControlRotation();
+	const float BodyYaw = GetActorRotation().Yaw;
+
+	// Shortest signed angle. A plain subtraction wraps at 180 and would fence the
+	// camera against the wrong side the moment the character faced south.
+	const float Offset = FMath::FindDeltaAngleDegrees(BodyYaw, Control.Yaw);
+	const float Fenced = FMath::Clamp(Offset,
+		-CameraYawLimitWhileAiming, CameraYawLimitWhileAiming);
+
+	if (FMath::IsNearlyEqual(Offset, Fenced))
+	{
+		return;
+	}
+
+	// Written back rather than blocked at the input, so the camera comes to rest
+	// against the limit and stays usable. Refusing the input instead would leave the
+	// stick fighting a wall that gives no sign it is there.
+	Control.Yaw = BodyYaw + Fenced;
+	OwningController->SetControlRotation(Control);
+}
+
 void ACHANGELINGCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
 	UpdateHandProbe(DeltaSeconds);
+	ClampAimCamera();
 }
 
 void ACHANGELINGCharacter::SetCantripMovementLocked(bool bLocked)

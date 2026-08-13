@@ -176,6 +176,27 @@ public:
 	int32 SpineBoneCount = 5;
 
 	/**
+	 * How far the aim may turn left or right in total, in degrees either side.
+	 *
+	 * This is the number that decides where the caster can point. The per-bone limit
+	 * below is a safety net for individual joints, not the reach.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
+		meta = (ClampMin = "0.0", ClampMax = "180.0"))
+	float MaxAimYaw = 75.0f;
+
+	/**
+	 * Where the caster is ACTUALLY pointing, in world space.
+	 *
+	 * The body's aim after clamping -- not where the camera is looking. Anything
+	 * projected from the hands must use this, or it separates from the character the
+	 * moment the camera turns further than a spine can: the flame keeps tracking the
+	 * eyeline while the arms stop, and it leaves the hands sideways.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Aiming")
+	FRotator GetAimWorldRotation() const;
+
+	/**
 	 * Limit on any ONE bone, in degrees either side.
 	 *
 	 * Clamped per bone rather than on the total, so no single joint can be asked for

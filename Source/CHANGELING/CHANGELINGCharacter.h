@@ -176,6 +176,24 @@ protected:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Aiming")
 	bool bAiming = false;
 
+	/**
+	 * How far the camera may swing off the body's facing while aiming, in degrees.
+	 *
+	 * Without this the camera orbits freely and the body simply stops turning at its
+	 * limit, so the player keeps looking while the caster keeps pointing -- and the two
+	 * silently disagree about where the ability is going. Fencing the camera in makes
+	 * the limit something you can feel rather than something you discover.
+	 *
+	 * Set to match the spine's own reach. Zero disables the fence.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
+		meta = (ClampMin = "0.0", ClampMax = "180.0"))
+	float CameraYawLimitWhileAiming = 75.0f;
+
+private:
+	/** Keeps the camera inside the arc the body can actually follow. */
+	void ClampAimCamera();
+
 public:
 	/**
 	 * True when something solid is close enough to the raised hand that the arm needs

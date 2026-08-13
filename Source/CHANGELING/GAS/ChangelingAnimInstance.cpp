@@ -68,8 +68,9 @@ void UChangelingAnimInstance::RefreshAim(float DeltaSeconds)
 		const FRotator Body = ChangelingCharacter->GetActorRotation();
 		Target = (Look - Body).GetNormalized();
 
+		Target.Yaw   = FMath::Clamp(Target.Yaw, -MaxAimYaw, MaxAimYaw);
 		Target.Pitch = FMath::Clamp(Target.Pitch, -MaxAimPitchDown, MaxAimPitchUp);
-		Target.Roll = 0.0f;
+		Target.Roll  = 0.0f;
 	}
 
 	// Interpolated in both directions, so releasing the stance unwinds rather than
@@ -84,6 +85,18 @@ void UChangelingAnimInstance::RefreshAim(float DeltaSeconds)
 
 	SpineBoneAim = MakeBoneAim(SpineAim, SpinePart / FMath::Max(1, SpineBoneCount));
 	NeckBoneAim  = MakeBoneAim(SpineAim, NeckPart  / FMath::Max(1, NeckBoneCount));
+}
+
+FRotator UChangelingAnimInstance::GetAimWorldRotation() const
+{
+	if (!ChangelingCharacter)
+	{
+		return FRotator::ZeroRotator;
+	}
+
+	// Actor rotation plus the CLAMPED offset -- deliberately not the camera. This is
+	// where the body got to, and anything leaving the hands has to agree with it.
+	return (ChangelingCharacter->GetActorRotation() + SpineAim).GetNormalized();
 }
 
 FRotator UChangelingAnimInstance::MakeBoneAim(const FRotator& Aim, float Share) const

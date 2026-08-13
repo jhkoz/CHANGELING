@@ -6,6 +6,7 @@
 #include "AbilitySystemInterface.h"
 #include "CHANGELINGCharacter.h"
 #include "CantripInternal.h"
+#include "ChangelingAnimInstance.h"
 #include "ChangelingAttributeSet.h"
 #include "ChangelingGameplayTags.h"
 #include "Components/PointLightComponent.h"
@@ -308,12 +309,26 @@ void UGA_SustainedCantrip::UpdateHandSpan()
 
 		if (AimSource == ECantripAimSource::ViewDirection)
 		{
-			// Base aim rotation rather than the controller's: it already resolves to the
-			// view for a possessed pawn and to the focus for an AI one, so a summoned
-			// caster aims by the same rule the player does without a second code path.
-			if (const APawn* Pawn = Cast<APawn>(Avatar))
+			// Where the BODY got to, not where the camera is looking. The two agree
+			// until the camera turns further than a spine can, and past that point the
+			// eyeline would keep tracking while the arms stopped -- leaving the flame
+			// pointing sideways out of hands that are facing somewhere else.
+			bool bUsedPose = false;
+			if (const UChangelingAnimInstance* Anim =
+				Cast<UChangelingAnimInstance>(Mesh->GetAnimInstance()))
 			{
-				Aim = Pawn->GetBaseAimRotation();
+				Aim = Anim->GetAimWorldRotation();
+				bUsedPose = true;
+			}
+
+			// No Changeling anim instance -- an NPC on a plain AnimBP, say. Fall back to
+			// the raw aim, which is right for anything that has no spine twist to match.
+			if (!bUsedPose)
+			{
+				if (const APawn* Pawn = Cast<APawn>(Avatar))
+				{
+					Aim = Pawn->GetBaseAimRotation();
+				}
 			}
 		}
 
