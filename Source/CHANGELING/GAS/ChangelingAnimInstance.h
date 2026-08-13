@@ -135,6 +135,36 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Aiming")
 	FRotator SpineBoneAim = FRotator::ZeroRotator;
 
+	/**
+	 * The share each NECK bone takes. Plug into neck_01 and neck_02.
+	 *
+	 * Optional, and it is not extra rotation on top -- the neck's share is taken OUT
+	 * of the spine's. Bones compose down the hierarchy, so the head already arrives at
+	 * the full aim from its ancestors; adding neck rotation without removing it from
+	 * the spine would simply point the head at twice the angle.
+	 *
+	 * What it buys is where the effort reads. Neck-heavy turns the head while the
+	 * chest stays put; spine-heavy swings the whole torso and takes the arms with it.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Aiming")
+	FRotator NeckBoneAim = FRotator::ZeroRotator;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
+		meta = (ClampMin = "1"))
+	int32 NeckBoneCount = 2;
+
+	/**
+	 * How much of the total the neck carries, 0 to 1.
+	 *
+	 * Kept low on purpose. Anything projected from the HANDS needs the spine to do the
+	 * work, because the arms hang off the clavicles and only follow what the spine
+	 * does. A neck-heavy aim points the face at the target and the flame somewhere
+	 * else. Raise it for a cantrip aimed by gaze rather than by hand.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
+		meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float NeckAimFraction = 0.2f;
+
 	/** The whole clamped, smoothed aim offset, before dividing. For anything that
 	 *  wants the total rather than a bone's share. */
 	UPROPERTY(BlueprintReadOnly, Category = "Aiming")
@@ -146,17 +176,32 @@ public:
 	int32 SpineBoneCount = 5;
 
 	/**
-	 * Limits on the whole turn, in degrees either side.
+	 * How far the turn may go left or right, in degrees either side.
 	 *
 	 * A spine has a range; past it the mesh shears and the silhouette breaks. Clamping
 	 * means looking hard over your shoulder simply stops at the limit rather than
-	 * folding the character in half.
+	 * folding the character in half. Spread over five bones, 75 is about 15 each.
 	 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
+		meta = (ClampMin = "0.0", ClampMax = "120.0"))
 	float MaxAimYaw = 75.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming")
-	float MaxAimPitch = 60.0f;
+	/**
+	 * How far the aim may tilt UP, in degrees.
+	 *
+	 * Deliberately smaller than the downward limit. A spine bends forward far more
+	 * readily than it arches back -- a body that leans as far backwards as it can fold
+	 * forwards reads as a puppet, and it drags the pelvis through the floor on the way.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
+		meta = (ClampMin = "0.0", ClampMax = "90.0"))
+	float MaxAimPitchUp = 35.0f;
+
+	/** How far the aim may tilt DOWN. Larger, because folding forward is the easy
+	 *  direction and looking at your own feet is a thing people do. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
+		meta = (ClampMin = "0.0", ClampMax = "90.0"))
+	float MaxAimPitchDown = 55.0f;
 
 	/** How fast the twist chases the camera. Interpolated rather than snapped: the
 	 *  camera can flick instantly and a body cannot. */

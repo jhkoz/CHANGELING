@@ -65,17 +65,33 @@ void UChangelingAnimInstance::RefreshAim(float DeltaSeconds)
 		const FRotator Body = ChangelingCharacter->GetActorRotation();
 		Target = (Look - Body).GetNormalized();
 
-		Target.Yaw   = FMath::Clamp(Target.Yaw,   -MaxAimYaw,   MaxAimYaw);
-		Target.Pitch = FMath::Clamp(Target.Pitch, -MaxAimPitch, MaxAimPitch);
-		Target.Roll  = 0.0f;
+		Target.Yaw = FMath::Clamp(Target.Yaw, -MaxAimYaw, MaxAimYaw);
+
+		// Asymmetric on purpose. Positive pitch is up, and a spine arches back much
+		// less than it folds forward -- an equal range either way reads as a puppet.
+		Target.Pitch = FMath::Clamp(Target.Pitch, -MaxAimPitchDown, MaxAimPitchUp);
+
+		// Roll is never wanted here. Leaving it in would let the caster list sideways
+		// whenever the camera was banked, and nothing about looking somewhere should
+		// tip a body over.
+		Target.Roll = 0.0f;
 	}
 
 	// Interpolated in both directions, so releasing the stance unwinds rather than
 	// snapping straight. Zero is just another target.
 	SpineAim = FMath::RInterpTo(SpineAim, Target, DeltaSeconds, AimInterpSpeed);
 
-	const float Share = 1.0f / FMath::Max(1, SpineBoneCount);
-	SpineBoneAim = FRotator(SpineAim.Pitch * Share, SpineAim.Yaw * Share, 0.0f);
+	// The two shares SUM to the whole aim, they do not stack. Rotations compose down
+	// the hierarchy, so the head arrives carrying everything its ancestors did; giving
+	// the neck its own slice on top would point the face at twice the angle asked for.
+	const float NeckPart = FMath::Clamp(NeckAimFraction, 0.0f, 1.0f);
+	const float SpinePart = 1.0f - NeckPart;
+
+	const float SpineShare = SpinePart / FMath::Max(1, SpineBoneCount);
+	const float NeckShare  = NeckPart  / FMath::Max(1, NeckBoneCount);
+
+	SpineBoneAim = FRotator(SpineAim.Pitch * SpineShare, SpineAim.Yaw * SpineShare, 0.0f);
+	NeckBoneAim  = FRotator(SpineAim.Pitch * NeckShare,  SpineAim.Yaw * NeckShare,  0.0f);
 }
 
 void UChangelingAnimInstance::RefreshCantripState()
