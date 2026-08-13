@@ -205,6 +205,11 @@ void ACHANGELINGCharacter::DoLook(float Yaw, float Pitch)
 		// add yaw and pitch input to controller
 		AddControllerYawInput(Yaw);
 		AddControllerPitchInput(Pitch);
+
+		// Immediately, on the same input that caused it. Correcting a frame later in
+		// Tick meant the camera briefly passed the limit and was pulled back, which
+		// reads as a stutter at exactly the moment the player is pushing hardest.
+		ClampAimCamera();
 	}
 }
 
@@ -337,6 +342,11 @@ void ACHANGELINGCharacter::SetAiming(bool bNewAiming)
 	// aiming through the spine is that the body stays where it is and only twists --
 	// snapping the capsule's yaw as well would make the twist invisible and the
 	// character spin on the spot every time the camera moved.
+
+	// Entering the stance with the camera already outside the arc would otherwise sit
+	// there uncorrected until the player next moved the mouse, and the flame would
+	// point somewhere the body never agreed to.
+	ClampAimCamera();
 }
 
 void ACHANGELINGCharacter::ClampAimCamera()
@@ -373,7 +383,6 @@ void ACHANGELINGCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	UpdateHandProbe(DeltaSeconds);
-	ClampAimCamera();
 }
 
 void ACHANGELINGCharacter::SetCantripMovementLocked(bool bLocked)
