@@ -190,9 +190,23 @@ protected:
 		meta = (ClampMin = "0.0", ClampMax = "180.0"))
 	float CameraYawLimitWhileAiming = 75.0f;
 
+	/**
+	 * Hold the body's facing while aiming, so movement strafes instead of turning.
+	 *
+	 * Without this the fence cannot hold. It is measured from the body, and a body that
+	 * turns to follow movement carries the fence around with it -- so the player simply
+	 * walks in a circle and ends up looking behind themselves with the arc apparently
+	 * still intact. Freezing the facing is what makes the limit mean anything.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming")
+	bool bFreezeFacingWhileAiming = true;
+
 private:
 	/** Keeps the camera inside the arc the body can actually follow. */
 	void ClampAimCamera();
+
+	/** What bOrientRotationToMovement was before aiming took it away. */
+	bool bFacingWasOrientedToMovement = true;
 
 public:
 	/**

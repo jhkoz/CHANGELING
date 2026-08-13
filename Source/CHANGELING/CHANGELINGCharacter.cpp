@@ -343,6 +343,24 @@ void ACHANGELINGCharacter::SetAiming(bool bNewAiming)
 	// snapping the capsule's yaw as well would make the twist invisible and the
 	// character spin on the spot every time the camera moved.
 
+	if (bFreezeFacingWhileAiming)
+	{
+		if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+		{
+			if (bAiming)
+			{
+				// Remembered rather than assumed, so restoring cannot quietly change a
+				// setting somebody deliberately turned off elsewhere.
+				bFacingWasOrientedToMovement = Movement->bOrientRotationToMovement;
+				Movement->bOrientRotationToMovement = false;
+			}
+			else
+			{
+				Movement->bOrientRotationToMovement = bFacingWasOrientedToMovement;
+			}
+		}
+	}
+
 	// Entering the stance with the camera already outside the arc would otherwise sit
 	// there uncorrected until the player next moved the mouse, and the flame would
 	// point somewhere the body never agreed to.
