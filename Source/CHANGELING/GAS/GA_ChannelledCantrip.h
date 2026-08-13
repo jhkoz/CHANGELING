@@ -145,6 +145,23 @@ protected:
 	void OnChannelRefused();
 
 	/**
+	 * Keep the caster's hands up until the effect has actually gone out.
+	 *
+	 * Releasing stops the flame being fed, but it still takes FadeOutSeconds to ramp
+	 * down and the particles already in the air outlive even that. Recovering the
+	 * instant the key comes up therefore drops the arms through fire that is still
+	 * burning, which reads as the animation and the effect belonging to different
+	 * events.
+	 *
+	 * With this on, the loop holds for the length of the fade and only then does the
+	 * body recover -- you stop feeding it, it gutters out, you lower your hands.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Channelled")
+	bool bHoldPoseUntilFaded = true;
+
+	virtual void CancelSustain() override;
+
+	/**
 	 * Seconds of wind-up before the working opens on its own, without waiting for the
 	 * input to be released.
 	 *
@@ -188,6 +205,7 @@ private:
 	FTimerHandle IntensityTimer;
 	FTimerHandle ChannelOpenTimer;
 	FTimerHandle EffectStartFallbackTimer;
+	FTimerHandle RecoveryHoldTimer;
 	FDelegateHandle EffectStartDelegate;
 	float CurrentIntensity = 1.0f;
 	bool bMovementLocked = false;
@@ -200,4 +218,8 @@ private:
 	 * resolves when the cast ladder says so. Whichever happens second does the spawning.
 	 */
 	bool bEffectStartSeen = false;
+
+	/** Whether the Channelling tag was actually added, so a fizzled cast does not
+	 *  remove one it never put there. */
+	bool bChannellingTagged = false;
 };

@@ -63,16 +63,16 @@ void UChangelingAnimInstance::RefreshCantripState()
 		return;
 	}
 
-	bCantripCasting = ASC->HasMatchingGameplayTag(ChangelingTags::Cantrip_State_Casting);
-	bCantripChannelling = ASC->HasMatchingGameplayTag(ChangelingTags::Cantrip_State_Channelling);
+	const bool bTagCasting = ASC->HasMatchingGameplayTag(ChangelingTags::Cantrip_State_Casting);
 
-	// Not simply "casting but not channelling" -- that is equally true of the WIND-UP,
-	// which has not recovered from anything yet. Recovery is the far side of a channel,
-	// so it needs to remember that one happened.
-	bHasChannelledThisCast |= bCantripChannelling;
-	bCantripRecovering = bCantripCasting && !bCantripChannelling && bHasChannelledThisCast;
+	if (!bTagCasting)
+	{
+		bCantripCasting = false;
+		bCantripChannelling = false;
+		bCantripRecovering = false;
+	}
 
-	if (!bCantripCasting)
+	if (!bTagCasting)
 	{
 		bHasChannelledThisCast = false;
 		ActiveCantrip.Reset();
@@ -113,6 +113,27 @@ void UChangelingAnimInstance::RefreshCantripState()
 			CantripElement = Row->Element;
 		}
 	}
+
+	/**
+	 * A cantrip only claims the body if it actually has an animation authored.
+	 *
+	 * Without this, EVERY cantrip routes into the spellcasting state machine, because
+	 * they all carry the casting tag. A torch held up while you walk around would be
+	 * frozen into a full-body casting pose it has no clips for -- which is the state
+	 * machine's Idle animation with a raised arm bolted on top, and looks exactly as
+	 * wrong as it sounds. Locomotion keeps the body; the pose is expressed by the
+	 * Modify Bone nodes reading CantripPose, as it was before this class existed.
+	 */
+	bCantripCasting = CantripAnims.IsSet();
+
+	bCantripChannelling = bCantripCasting &&
+		ASC->HasMatchingGameplayTag(ChangelingTags::Cantrip_State_Channelling);
+
+	// Not simply "casting but not channelling" -- that is equally true of the WIND-UP,
+	// which has not recovered from anything yet. Recovery is the far side of a channel,
+	// so it needs to remember that one happened.
+	bHasChannelledThisCast |= bCantripChannelling;
+	bCantripRecovering = bCantripCasting && !bCantripChannelling && bHasChannelledThisCast;
 
 	// Republished from the curve rather than read straight off it in Blueprint, so a
 	// state blending out still reports the value its own clip is authoring.

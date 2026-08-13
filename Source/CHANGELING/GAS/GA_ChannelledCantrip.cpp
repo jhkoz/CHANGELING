@@ -185,6 +185,7 @@ void UGA_ChannelledCantrip::PostResolve(const FCantripOutcome& Outcome, const FC
 	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
 	{
 		ASC->AddLooseGameplayTag(ChangelingTags::Cantrip_State_Channelling);
+		bChannellingTagged = true;
 	}
 
 	if (ChannelSound)
@@ -292,6 +293,30 @@ void UGA_ChannelledCantrip::StopListeningForEffectStart()
 	}
 }
 
+void UGA_ChannelledCantrip::CancelSustain()
+{
+	UWorld* World = GetWorld();
+
+	// Nothing to hold onto, or already holding: fall through to the immediate path.
+	if (!IsSustaining() || !bHoldPoseUntilFaded || FadeOutSeconds <= 0.0f || !World)
+	{
+		Super::CancelSustain();
+		return;
+	}
+
+	// Put the fire out and start its fade, but do NOT end the ability yet. The
+	// Channelling tag stays, so the graph keeps playing the loop and the caster's hands
+	// stay up while the flame dies in front of them.
+	StopSustain(/*bRanOut*/ false);
+
+	World->GetTimerManager().SetTimer(RecoveryHoldTimer,
+		FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		}),
+		FadeOutSeconds, false);
+}
+
 void UGA_ChannelledCantrip::SampleIntensity()
 {
 	if (!IsSustaining())
@@ -362,6 +387,7 @@ void UGA_ChannelledCantrip::EndAbility(const FGameplayAbilitySpecHandle Handle,
 	{
 		World->GetTimerManager().ClearTimer(IntensityTimer);
 		World->GetTimerManager().ClearTimer(ChannelOpenTimer);
+		World->GetTimerManager().ClearTimer(RecoveryHoldTimer);
 	}
 
 	StopListeningForEffectStart();
@@ -369,9 +395,19 @@ void UGA_ChannelledCantrip::EndAbility(const FGameplayAbilitySpecHandle Handle,
 	// Dropping this is what lets the graph leave the loop and play the recovery. It
 	// happens on every exit -- released, interrupted, cancelled, avatar destroyed --
 	// because a stuck Channelling tag is a character stuck in the loop forever.
-	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
+	//
+	// Guarded on having actually added it. A cast that fizzles -- failed roll, no
+	// clearance, missing row -- ends without the channel ever opening, and removing a
+	// tag that was never added decrements a count that is already zero. GAS warns
+	// about that, and the warning is the only symptom until some later cantrip's
+	// legitimate tag is cancelled out by the deficit.
+	if (bChannellingTagged)
 	{
-		ASC->RemoveLooseGameplayTag(ChangelingTags::Cantrip_State_Channelling);
+		if (UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
+		{
+			ASC->RemoveLooseGameplayTag(ChangelingTags::Cantrip_State_Channelling);
+		}
+		bChannellingTagged = false;
 	}
 
 	// Handed to the character rather than released here. The recovery animation is

@@ -10,8 +10,8 @@ derived in C++. You never set any of that state. What you do build:
 | 2 | The spellcasting state machine | 40 min |
 | 3 | The two transition events | 2 min |
 | 4 | The `EffectIntensity` curve | 15 min |
-| 5 | The flamethrower Niagara system | 45 min |
-| 6 | The looping sound cue | 20 min |
+| 5 | The flamethrower Niagara system | 20 min |
+| 6 | The looping sound cue | done already |
 | 7 | The ability Blueprint + table row | 10 min |
 | 8 | Input | 5 min |
 | 9 | Foot IK | 2 min |
@@ -70,36 +70,41 @@ Part 2 fixes it in the graph.
 
 Note the length of your Begin clip once it is imported — Part 7 uses it.
 
-## 0.2 Through the Mixamo Converter
+## 0.2 Import — SKIP the converter for these files
 
-4. Drop all three FBX files into the converter's `incoming fbx` folder.
-5. Run the converter, click through to step 2, hit **Convert**.
-6. Collect the results from `outgoing fbx`.
+**Your three clips already carry a full UE5 Manny skeleton, root bone included.** They do
+not go through the Mixamo Converter and they do not go through the retargeter. Feeding
+them to the converter produces `Can't add root bone: existing root detected!`, which is
+the tool correctly refusing to add a root to a skeleton that has one.
 
-## 0.3 Import to the UE4 skeleton
+How to tell, for any future clip: open it and look for `ik_foot_root`, `ik_hand_gun`,
+`interaction` or `center_of_mass`. Those are Unreal-only bones that Mixamo never
+produces. If they are present, the file is already converted.
 
-7. In the Content Browser, go to `Content/Characters/Mannequins/` — wherever your
-   UE4 mannequin lives (the folder you used in episode 25).
-8. Drag all three converted FBX files in.
-9. In the import dialog:
-   - **Skeleton**: the UE4 mannequin skeleton
-   - **Import Translation**: `0, 0, -3`
-   - Animation only (mesh import off)
-10. Click **Import All**.
-11. Double-click one to confirm it plays correctly.
+4. Drag your three FBX files into `Content/Characters/Mannequins/Anims/Cantrips/`.
+5. In the import dialog set:
+   - **Skeleton**: the **UE5 Manny** skeleton — the one `ABP_Unarmed` uses. Not the UE4 one.
+   - **Import Translation**: `0, 0, 0` — the `0,0,-3` used elsewhere corrects for the
+     Mixamo pipeline and would sink these into the floor.
+   - **Import Mesh**: unticked. Animation only.
+6. Click **Import All**.
+7. Rename to `A_Cantrip_Channel_Begin` / `_Loop` / `_End`.
+8. Open each and confirm the feet sit on the ground and the hands are not twisted. A
+   wrong skeleton pick shows up immediately as mangled limbs.
 
-## 0.4 Retarget to Manny
+Note the length of your Begin clip — Part 7.2 needs it.
 
-12. Navigate to the `RTG_UE4_Manny_to_UE5_Manny` retargeter asset (in `Mannequins/Rigs/`
-    or wherever episode 25 left it) and open it.
-13. Select all three imported animations (Ctrl-click).
-14. Click **Export Selected Animations**.
-15. Send the output to a new folder: `Content/Characters/Mannequins/Anims/Cantrips/`.
-16. Rename the three results to:
-    - `A_Cantrip_Channel_Begin`
-    - `A_Cantrip_Channel_Loop`
-    - `A_Cantrip_Channel_End`
-17. Open each one and confirm it is mapped to Manny and plays cleanly.
+## 0.3 If you ever do need the converter
+
+For a genuinely raw Mixamo download (no root bone), the route is: converter's
+`IncomingFbx` → run it → `OutgoingFbx` → import against the **UE4** mannequin skeleton
+with **Import Translation `0,0,-3`** → open `RTG_UE4_Manny_to_UE5_Manny` → select the
+animations → **Export Selected Animations**.
+
+One thing to know if it fails: the converter's actual engine is `MixamoToUE.exe` plus
+`libfbxsdk.dll`, and both live *inside* the `IncomingFbx` folder. If they are missing,
+every conversion fails with "Failed to recover the error" — that message means the GUI
+could not launch its own backend, not that anything is wrong with your files.
 
 ---
 
@@ -113,30 +118,35 @@ AnimBP your character actually uses.
 3. In the class picker, type `ChangelingAnimInstance` and select it.
 4. Click **Compile**.
 
-## 1.1 The compile error you should expect
+## 1.1 You will not see the new variables yet
 
-You will get an error naming a variable that now exists on both the parent and the
-child. There is one you should specifically expect:
+**The My Blueprint panel hides inherited variables by default.** After reparenting,
+nothing appears to have changed — this is the panel's filter, not a failed reparent.
 
-**`CantripPose`** — you added this to the AnimBP by hand during the torch work.
+5. In the **My Blueprint** panel, click the **settings / gear icon** in its top-right
+   corner.
+6. Tick **Show Inherited Variables**.
 
-To fix it:
+The ten variables in 1.3 now appear under a `Cantrip` category.
 
-5. In the **My Blueprint** panel on the left, find your local `CantripPose` variable.
-6. Right-click it → **Delete**.
-7. Compile again.
+Two ways to confirm the reparent actually took:
 
-Every node that *reads* `CantripPose` will re-link itself to the parent's version
-automatically, because the name and type match. You should not have to rewire anything.
+- **Class Settings → Parent Class** should read `ChangelingAnimInstance`. If it still
+  says `AnimInstance`, the reparent did not happen.
+- Right-click in the graph and search `Cantrip Pose`. The context menu finds inherited
+  variables regardless of the My Blueprint filter, so a hit there means everything is
+  wired up.
 
-8. Now open `BP_ThirdPersonCharacter` and find the **`Set Cantrip Pose`** node you were
-   using to push the pose into the AnimBP. **Delete it.** The parent class reads the
-   pose off the character every frame now, so that set is not only redundant — the
-   parent's copy is read-only and the old node would be writing to a variable nothing
-   reads any more.
-9. Compile the character Blueprint.
+## 1.1a If the compile fails on a name clash
 
-If any *other* variable name collides, the same fix applies: delete the child's copy.
+Only relevant if you happen to have a local variable with the same name as one of the
+parent's. If so, right-click your local copy in My Blueprint → **Delete**, and compile
+again. Nodes that *read* it re-link to the parent's version automatically, since the
+name and type match — you should not have to rewire anything.
+
+Then check `BP_ThirdPersonCharacter` for a **`Set Cantrip Pose`** node pushing the pose
+into the AnimBP. If one exists, delete it: the parent reads the pose off the character
+every frame now, and the parent's copy is read-only.
 
 ## 1.2 What you should not expect
 
@@ -245,8 +255,8 @@ rule.
 |---|---|---|
 | 1 | Cantrip Idle → Channel Begin | `bCantripCasting` → Can Enter Transition |
 | 2 | Channel Begin → Channel Loop A | `bCantripChannelling` → Can Enter Transition |
-| 3 | Channel Loop A → Channel Loop B | time-remaining rule (below) |
-| 4 | Channel Loop B → Channel Loop A | time-remaining rule |
+| 3 | Channel Loop A → Channel Loop B | `Get Relevant Anim Time Remaining` < `0.1` |
+| 4 | Channel Loop B → Channel Loop A | `Get Relevant Anim **Time**` < `0.1` — NOT time remaining |
 | 5 | Channel Loop A → Channel End | `bCantripRecovering` → Can Enter Transition |
 | 6 | Channel Loop B → Channel End | `bCantripRecovering` → Can Enter Transition |
 | 7 | Channel End → Cantrip Idle | time-remaining rule |
@@ -267,6 +277,21 @@ versions all race:
   is equally true *before* the working ever opens, so on any frame where the loop is
   entered a moment before the roll lands, the End animation would fire instantly and the
   cast would collapse. `bCantripRecovering` is false until a channel has actually opened.
+### Start with ONE looping state
+
+Build `Channel Loop A` with **Loop Animation ticked** and skip `Channel Loop B` and
+transitions #3/#4 entirely. The ping-pong exists only to hide a seam when the loop clip's
+first and last frames do not match, and if you chose your own trim points it may cycle
+cleanly without it. A possible seam every few seconds beats a guaranteed jitter.
+
+Add the ping-pong only if you actually see a twitch. When you do, note that **the two
+directions need different questions**: `Channel Loop B` plays with **Play Rate −1** from
+**Start Position 1.0**, and "time remaining" is computed as *length − current position*
+regardless of direction. B therefore starts with zero time remaining and transitions out
+on its first frame — A and B alternate every frame and the character shakes. A clip
+playing backwards finishes near time **zero**, so B→A asks for its current
+**Time**, not its Time Remaining.
+
 - **#8 is the abandoned wind-up** — you let go before the flame appeared. Without it the
   inner state machine stays parked in Channel Begin and the next cast starts from the
   wrong state.
@@ -305,357 +330,456 @@ else in this document depends on the binding working.
 
 # Part 3 — The two transition events
 
-Two text fields. Type them **exactly** — they are matched by string, character for
-character, and they are case-sensitive.
+Two text fields. They are matched by string, character for character, and they are
+case-sensitive. This is the shortest part of the document and the one most worth
+slowing down for.
 
-## 3.1 Effect start
+You are **not** creating notify assets and **not** adding Event Graph nodes. The two
+functions already exist on `ChangelingAnimInstance`; Unreal calls them by name when a
+transition starts or ends. Typing the name here is the entire wiring.
 
-1. Inside the `Cantrip Casting` state machine, click the circle on the transition
-   **Channel Begin → Channel Loop A** (transition #2 above) to select it.
-2. In the **Details** panel, find the **Events** section.
-3. In **Start Transition Event**, set the **Custom Blueprint Event** name to:
+## 3.1 Effect start — makes the flame appear
+
+1. Open `ABP_Unarmed`.
+2. In **My Blueprint** (left panel), under **Animation Graphs**, double-click
+   `Cantrip Casting` to open that state machine.
+3. Find the arrow running from **Channel Begin** to **Channel Loop A**. Every transition
+   arrow has a small round node partway along it.
+4. **Single-click that circle** to select the transition. Do not double-click — that
+   opens the rule graph, which is not what you want here.
+5. Look at the **Details** panel (right side). With a transition selected it shows
+   sections including **Transition**, **Blend Settings**, **Notifies** and **Events**.
+6. Expand **Events**.
+7. You will see two entries: **Start Transition Event** and **End Transition Event**.
+   Each expands into fields including **Custom Blueprint Event**.
+8. Expand **Start Transition Event** and type into its **Custom Blueprint Event** field:
 
 ```
 CantripEffectStart
 ```
 
-That is what makes the flame appear. It fires when the gesture actually finishes, rather
-than after a fixed delay that stops being correct the moment you retime the clip.
+9. Press **Enter** to commit the text. Clicking away without pressing Enter can drop it.
+10. **Compile.**
 
-## 3.2 Recovered
+### Verifying it took
 
-4. Navigate back up to the **main** state machine (the one with Locomotion).
-5. Click the circle on the transition **Cantrip Casting → Locomotion**.
-6. In **Details → Events → End Transition Event**, set the name to:
+Reselect the transition and re-read the field. If it is blank, the text was not
+committed — retype it and press Enter.
+
+## 3.2 Recovered — gives the character its feet back
+
+11. Navigate **up** to the state machine that contains **Locomotion**. This is the
+    top-level one, not `Cantrip Casting`. Use the breadcrumb bar along the top of the
+    graph, or double-click the parent state machine in My Blueprint.
+12. Find the arrow from **Cantrip Casting** back to **Locomotion**.
+13. Single-click its circle.
+14. **Details → Events → End Transition Event → Custom Blueprint Event**:
 
 ```
 CantripRecovered
 ```
 
-That is what gives the character its feet back.
+15. Press **Enter**.
+16. **Compile and save.**
 
-**Put it on this transition, not on a notify inside the End clip.** This transition is
-taken on every possible exit — released, interrupted, cancelled, killed mid-gesture — so
-the movement lock cannot survive a cast that ended in an unusual way. A notify buried
-inside a clip only fires if that clip plays as far as the frame it sits on, which is
-exactly the failure that leaves you unable to walk.
+Note this one is **End** Transition Event, where 3.1 was **Start**. They are different
+fields in the same-looking section, and putting the name in the wrong one produces no
+error at all — just the symptom described below.
 
-There is a 1.5-second safety timeout behind this in C++, so a typo here costs you a
-short pause before you can move, not a permanently frozen character. **If you see that
-pause in testing, check this spelling first.**
+## 3.3 Why this one is on the transition and not in a clip
 
-7. Compile and save.
+The obvious place for "the cast is over" is a notify on the last frame of the End
+animation. Do not do that.
 
-You do **not** need to create event nodes in the Event Graph for either of these. The
-functions already exist on the parent class and are called automatically by name.
+A notify inside a clip only fires if that clip plays as far as the frame the notify sits
+on. A cast that was interrupted, cancelled, or ended because the character was killed
+mid-gesture never reaches that frame, and the movement lock never lifts.
+
+The **Cantrip Casting → Locomotion** transition is taken on *every* exit, however the
+cast ended. That is why the name goes here.
+
+## 3.4 The safety net, and what it tells you
+
+There is a **1.5-second timeout** in C++ behind `CantripRecovered`. If the event never
+arrives, the character is released anyway.
+
+This means a typo in 3.2 does not freeze your character — it gives you a **consistent
+short pause** between the end of the recovery animation and being able to move again.
+
+**If you see that pause in testing, check 3.2's spelling before looking at anything
+else.** It is the single most likely mistake in this document.
+
+The equivalent fallback for 3.1 is **1 second**. A typo there shows up as the flame
+appearing at a fixed beat that never quite matches the gesture.
 
 ---
 
 # Part 4 — The EffectIntensity curve
 
-This one curve drives the Niagara spawn rate, the sound volume and the sound pitch, all
-read from the same place — so they cannot drift apart.
+One curve drives three things: the Niagara spawn rate, the sound volume, and the sound
+pitch. They all read the same source, so they cannot drift apart from each other or from
+the animation.
 
-The name must be exactly `EffectIntensity`.
+The name must be exactly `EffectIntensity` on all three clips — it is how the C++ finds
+it, and it is how the three clips' curves join into one continuous signal as the state
+machine blends between them.
 
-## 4.1 Begin clip
+## 4.0 Finding the curve editor
 
-1. Open `A_Cantrip_Channel_Begin`.
-2. In the curves panel (bottom left, under the notifies track), click **+ Curve →
-   Add Curve** and name it `EffectIntensity`.
-3. Double-click the curve name to open its graph editor.
-4. Right-click on the curve line at roughly **55%** along → **Add Key**. Select that key
-   and set its **Value** to `0`.
-5. Right-click at the very **end** of the timeline → **Add Key**. Set its **Time** to
-   `1.0` (or the clip's end) and **Value** to `1.0`.
-6. If you cannot see the top of the graph, scroll out with the mouse wheel and pan with
-   the right mouse button.
-7. Right-click each key → **Auto** so the ramp curves instead of kinking.
-8. Save.
+1. Double-click an animation asset to open it in the Animation Editor.
+2. The timeline runs along the bottom. To its left is a track list containing
+   **Notifies** and, below it, **Curves**.
+3. If you cannot see a **Curves** track, use **Window → Curves** from the menu bar, or
+   click the **+ Curve** / **Add Curve** button in the track list header.
 
-## 4.2 Loop clip
+## 4.1 Begin clip — the ramp up
 
-9. Open `A_Cantrip_Channel_Loop`.
-10. **+ Curve → Add Curve**, and pick the existing `EffectIntensity` from the list.
-11. Right-click anywhere on the line → **Add Key**. Set its **Value** to `1.0`.
+4. Open `A_Cantrip_Channel_Begin`.
+5. In the track list, click **+ Curve → Add Curve** (some versions: **Add Float Curve**).
+6. Name it exactly:
 
-A single key sets the whole line to that value. Confirm by zooming out that the line is
-flat at 1.0 across the entire clip.
+```
+EffectIntensity
+```
 
-12. Save.
+7. **Double-click the curve's name** in the track list to open its graph editor. You
+   should now see a horizontal line and a numeric vertical axis.
+8. **Right-click on the curve line at roughly 55% along → Add Key.**
+9. Click that key to select it. Its **Time** and **Value** appear in fields above the
+   graph (or in the Details panel). Set **Value** to `0`.
+10. **Right-click at the far right end of the timeline → Add Key.**
+11. Select it and set **Value** to `1.0`.
+12. If the top of the graph is off-screen, **scroll out with the mouse wheel** and pan
+    with the **right mouse button held**.
+13. **Right-click each key → Auto** (under a Tangent or Interpolation submenu). This
+    curves the ramp instead of leaving a hard kink.
+14. **Save.**
 
-## 4.3 End clip
+The shape you want: flat at zero for the first half of the clip, then a smooth rise to
+1.0 by the last frame. The flame is dark while the arms come up, and at full strength
+the instant the gesture lands.
 
-13. Open `A_Cantrip_Channel_End`.
-14. **+ Curve → Add Curve → `EffectIntensity`**.
-15. Add a key at **time 0**, value `1.0`.
-16. Add a key at roughly **60%** along, value `0`.
-17. Right-click both keys → **Auto**.
-18. Save.
+## 4.2 Loop clip — flat at full
+
+15. Open `A_Cantrip_Channel_Loop`.
+16. **+ Curve → Add Curve.** This time `EffectIntensity` already exists in the project —
+    pick it from the list rather than typing it again, so the names cannot diverge.
+17. Double-click it to open the graph.
+18. **Right-click anywhere on the line → Add Key.** Select it, set **Value** to `1.0`.
+
+A single key sets the entire line to that value.
+
+19. **Zoom out and confirm the line is flat at 1.0 across the whole clip.** If it slopes,
+    you have a second key somewhere — delete it.
+20. **Save.**
+
+## 4.3 End clip — the fall
+
+21. Open `A_Cantrip_Channel_End`.
+22. **+ Curve → Add Curve → `EffectIntensity`.**
+23. Add a key at **Time 0**, **Value `1.0`**.
+24. Add a key at roughly **60%** along, **Value `0`**.
+25. **Right-click both keys → Auto.**
+26. **Save.**
+
+The last 40% of the clip sits at zero deliberately: the flame is out well before the arms
+finish dropping, so the character is visibly finishing a gesture rather than the fire
+being cut off at the same moment.
+
+## 4.4 If you skip this part entirely
+
+The C++ treats a missing curve as full strength throughout. The cantrip works — flame,
+sound, everything — it just switches on and off at full intensity instead of swelling
+and dying. Worth knowing so you can test Parts 5–8 before coming back to do this.
 
 ---
 
 # Part 5 — The flamethrower Niagara system
 
-The best fire here is the old Cascade `P_Fire` from the starter content, converted. The
-Niagara fluids plugin produces either a flat 2D effect that does not project into space,
-or a grainy 3D one.
+You already own a purpose-built one: `Content/MixedVFX/Particles/Fires/NS_FlameThrower`.
+Use it. It is a **CPU** sprite system, which is what we need — GPU emitters cannot hand
+collision data back out, and we will want that later for what the fire actually burns.
 
-## 5.1 Enable the converter plugin
+**This replaces converting `P_Fire` from Cascade.** You skip enabling the converter
+plugin, the conversion itself, clearing dozens of conversion warnings, and disabling
+unwanted emitters. What is left is adding two parameters and a collision module.
 
-1. **Edit → Plugins**.
-2. Search `Cascade to Niagara`.
-3. Tick **Cascade To Niagara Converter**.
-4. Restart the editor when prompted.
+Roughly 20 minutes instead of 45.
 
-If you have no `Content/StarterContent/` folder at all, create a scratch project with
-starter content enabled and copy the `Particles` and `Textures` folders across first.
+## 5.0 What is in the asset
 
-## 5.2 Convert
+Read from the asset itself, so expect these but do not be alarmed by small differences:
 
-5. Navigate to `Content/StarterContent/Particles/`.
-6. Right-click **P_Fire** → **Convert To Niagara System**. Wait a few seconds.
-7. Create the folder `Content/_Custom/Niagara/Cantrips/Pyretics/`.
-8. Move the converted asset there and rename it:
+| | |
+|---|---|
+| Emitters | `DirectionalBurst`, `Empty`, `Empty001` (the last two are just unnamed) |
+| Simulation | CPU |
+| Renderer | Sprite, all three using `MI_Fire` |
+| Modules | Sphere Location, Add Velocity, Acceleration Force, Apply Initial Forces, Solve Forces And Velocity, Colour + Colour Curve, Scale Colour, Scale Sprite Size, Scale Sprite Size By Speed, Sprite Rotation Rate |
+| User parameters | **none — you add two** |
+| Collision | **none — you add one per emitter** |
+
+The pack author has already tuned the spawn rates, colour curve and sizes. **Preserve
+that work.** Everything below wraps or adds to what is there rather than replacing it.
+
+## 5.1 Duplicate it first
+
+1. Create the folder `Content/_Custom/Niagara/Cantrips/Pyretics/`.
+2. Right-click `MixedVFX/Particles/Fires/NS_FlameThrower` → **Duplicate**.
+3. Move the copy into that folder and name it:
 
 ```
 NS_Cantrip_Flamethrower
 ```
 
-## 5.3 Clear the conversion warnings
+Work only on the copy, so the pack asset stays pristine and you always have something to
+compare against.
 
-9. Open it. There will be a stack of yellow warnings on the system and on every emitter.
-10. Click **Acknowledge and Clear Issue** on each one. Expand every module in every
-    emitter and clear those too. This is tedious and takes a few minutes; the system
-    will not behave until it is done.
+## 5.2 Add the two user parameters
 
-## 5.4 Disable the emitters you do not want
-
-11. Deactivate **Smoke**, **Embers** and **Sparks** (right-click the emitter header →
-    Disable, or untick its enabled checkbox).
-12. Keep **Flames**, **Flames001** and **Distortion**.
-
-Distortion is the heat-shimmer above the flame — the wobble you see over a hot road. It
-is worth keeping.
-
-## 5.5 Add the user parameters
-
-13. In the left panel, find **User Exposed Parameters**. Click **+**.
-14. **Make New → Common → float**. Name it exactly:
+4. Open `NS_Cantrip_Flamethrower`.
+5. In the left-hand panel of the **System** view, find **User Exposed Parameters**.
+6. Click **+ → Make New → Common → float**. Name it exactly:
 
 ```
 Intensity
 ```
 
-15. Click **+** again, **Make New → Common → float**. Name it exactly:
+7. Click **+ → Make New → Common → float** again. Name it exactly:
 
 ```
 FadeAlpha
 ```
 
-The C++ writes both every frame. `Intensity` follows the anim curve (0–1); `FadeAlpha`
-is 1 while the working is open and ramps smoothly to 0 over half a second when it
-closes.
+Spelling is load-bearing. The C++ writes these by name; a wrong name lands on nothing and
+fails silently — you get a flamethrower that never appears and no error anywhere.
 
-**Do not build the video's `SpawnParticles` bool.** `FadeAlpha` does that job and does
-it better — the boolean cuts spawning dead, while the ramp thins the flame out. Either
-way the particles already in the air finish their own lifetimes, so the flame dies down
-rather than being switched off.
+**What they do.** `Intensity` follows the animation curve, 0–1, so the fire swells as the
+arms come up. `FadeAlpha` sits at 1 while the working is open and ramps to 0 over half a
+second when it closes, so the flame thins out instead of being switched off.
 
-## 5.6 Emitter 1 — Flames
+## 5.3 Write down the existing spawn rates — do this before you change anything
 
-Select the **Flames** emitter and set:
+8. Select the **DirectionalBurst** emitter. In **Emitter Update → Spawn Rate**, note the
+   number.
+9. Do the same for **Empty** and **Empty001**.
 
-**Emitter Update → Spawn Rate**
-- Click the dropdown next to Spawn Rate → **Multiply Float by Float**.
-- Set the first input to `20`.
-- On the second input, click its dropdown → pick the user parameter **Intensity**.
-- Add a second **Multiply Float by Float** on the result, and set its other input to the
-  user parameter **FadeAlpha**.
+Write all three down.
 
-The result is `20 × Intensity × FadeAlpha`. Repeat this same three-part chain for the
-other two emitters with their own base numbers.
+The next step replaces that local value with a dynamic input, and **the number you have
+now is gone the moment you do**. It is the pack author's tuning and you want it back.
 
-**Particle Spawn → Shape Location**
-- Sphere **Radius**: `10`
-
-**Particle Spawn → Add Velocity** (the plain one)
-- **Disable** this module.
-
-**Particle Spawn → Add Velocity** (the cone/random-range one)
-- Minimum: X `350`, Y `0`, Z `50`
-- Maximum: X `600`, Y `0`, Z `100`
-- **Rotation Coordinate Space: Local** — this is what orients the flame to wherever the
-  hand is pointing. Getting it wrong sends the fire off in a world-space direction.
-
-**Particle Spawn → Initialize Particle**
-- Untick **Dynamic Material Parameters**
-
-**Particle Update → Scale Sprite Size**
-- Change the curve's start value from `0` to `0.5` so the fire starts at half size
-  rather than at nothing.
-- Untick **Dynamic Material Parameters** here too if present.
-
-**Particle Update → add a Collision module**
-- Click **+** under Particle Update → search **Collision** → add it.
-- Drag it to sit under **Acceleration Force**.
-- **CPU Collision Trace Channel: `Pawn`** ← easy to miss and causes strange behaviour
-  when wrong
-- **Restitution**: `0.05`
-- **Randomize Collision Normal Vector**: `0.2`
-- **Friction**: `0.9`
-- **Friction During Bounce**: `0.9`
-
-**Render → Light Renderer**
-- **Untick it.** Rendering particles as lights is very expensive — it costs roughly
-  20 fps at high intensity, against about 2 fps without. The fire still reads as
-  self-lit.
-
-## 5.7 Emitter 2 — Flames001
-
-**Emitter Update → Spawn Rate**: `100 × Intensity × FadeAlpha` (same chain as above)
-
-**Particle Spawn → Initialize Particle**
-- **Sprite Size Mode**: `Random Non-Uniform`
-- Minimum: `40, 60`
-- Maximum: `70, 90`
-- **Sprite Rotation Mode**: `Unset`
-- Untick **Dynamic Material Parameters**
-
-**Particle Spawn → Shape Location**: Sphere **Radius** `10`
-
-**Particle Spawn → Add Velocity** (plain): **disable**
-
-**Particle Spawn → Add Velocity** (cone/random range):
-- Minimum X `350`, Z `50`; Maximum X `600`, Z `100`
-- **Rotation Coordinate Space: Local**
-
-**Particle Update → Scale Sprite Size**: start value `0.5`
-
-**Particle Update → Collision** (add it, under Acceleration Force):
-- **CPU Collision Trace Channel: `Pawn`**
-- **Restitution**: `0.7` — this emitter bounces a lot, where emitter 1 barely does
-- **Randomize Collision Normal Vector**: `0.2`
-- **Friction**: `0.9`
-- **Friction During Bounce**: `0.3`
-- **Advanced → Advance Aging Rate**: `5` (particles age faster once they have hit
-  something, so the fire does not pile up against a wall)
-
-**Render → Light Renderer**: **untick**
-
-## 5.8 Emitter 3 — Distortion
-
-**Emitter Update → Spawn Rate**: `125 × Intensity × FadeAlpha`
-
-**Emitter Update → Spawn Burst Instantaneous**: untick (it spawns nothing anyway)
-
-**Particle Spawn → Initialize Particle**
-- **Lifetime**: `0.7` to `1.0`
-- **Sprite Size Mode**: `Random Uniform`, from `10` to `15`
-- **Sprite Rotation Mode**: `Unset`
-
-**Particle Spawn → Add Velocity**
-- Minimum X `350`, Z `60`; Maximum X `600`, Z `100`
-- **Rotation Coordinate Space: Local**
-
-Distortion rises slightly faster than the fire — heat shimmer sits above the flame.
-
-**Particle Update → Scale Sprite Size**: start value `0.5`
-
-**Particle Update → Collision** (add under Acceleration Force):
-- **CPU Collision Trace Channel: `Pawn`**
-- **Restitution**: `0.7`
-- **Randomize Collision Normal Vector**: `0.2`
-- **Friction**: `0.9`
-- **Friction During Bounce**: `0.5`
-- **Advanced → Advance Aging Rate**: `5`
-
-## 5.9 Finish
-
-16. **Compile** and **Save**.
-17. Leave **Auto Destroy** alone — the C++ deactivates the component and lets it clean
-    itself up once the last particle expires.
-
-While editing, the preview will show **no particles at all**, because `Intensity` and
-`FadeAlpha` both default to 0 and anything times zero is zero. That is expected. To
-preview, temporarily set both user parameters to `1` in the parameters panel — just
-remember to set them back to 0 before saving, or the effect will burst on spawn.
-
----
-
-# Part 6 — The sound
-
-## 6.1 Get and cut the source
-
-1. From zapsplat.com, download **medium soft fire whooshes** as MP3.
-2. Open it in Audacity. There are two distinct whooshes in the one file.
-3. Trim off the silence at the head and the tail.
-4. Select the first whoosh, **Edit → Copy**, then **Tracks → Add New → Stereo Track**
-   and paste it there.
-5. On the original track, delete the first whoosh so only the second remains.
-6. **Make the two clips deliberately different lengths.** They will loop independently,
-   and equal lengths mean they re-sync into an audible pulse.
-7. Solo each in turn to check them.
-8. **File → Export → Export Multiple**, WAV format, to your Downloads folder.
-9. Name them `Flamethrower_Channel_1` and `Flamethrower_Channel_2`.
-
-## 6.2 Import and build the cue
-
-10. In the Content Browser create `Content/_Custom/Audio/Cantrips/Pyretics/`.
-11. Drag both WAVs in.
-12. Select both → right-click → **Create Single Cue**.
-13. Rename the cue to `SC_Cantrip_Channel`.
-14. Open it. On **each** of the two wave player nodes, tick **Looping** in Details.
-15. Select the **Output** node. Set **Attenuation Settings** to your footstep
-    hard-surface attenuation asset (the non-spatialised one from the footstep work,
-    ~50cm radius with a 10m falloff).
-16. Save.
-
-**Do not build the volume and pitch tick logic from the video.** The ability already
-sets volume from the curve and pitch from a configured range every frame in C++. There
-is nothing to wire.
-
----
-
-# Part 7 — The ability Blueprint and the table row
-
-## 7.1 The ability
-
-1. In `Content/_Custom/GAS/Abilities/` right-click → **Blueprint Class**.
-2. Expand **All Classes**, search `GA_ChannelledCantrip`, select it, **Create**.
-3. Name it `GA_Pyretics`.
-4. Open it, click **Class Defaults**, and set:
-
-| Property | Value |
+| Emitter | Existing Spawn Rate |
 |---|---|
-| Cantrip Table | `DT_Cantrips` |
-| Cantrip Row | `Pyretics_1` |
-| Realms Used | one element: `Actor` |
-| Glamour Cost Effect | your Glamour cost GE |
-| Sustained Effect | `NS_Cantrip_Flamethrower` |
-| Attach Socket | `hand_rSocket` |
-| Attach Offset | `0, 0, -20` |
-| Sustained Pose | `Both Hands Raised` |
-| Channel Sound | `SC_Cantrip_Channel` |
-| Channel Pitch Range | `0.9, 1.1` |
-| Lock Movement While Channelling | ✔ |
-| Forward Clearance | `120` |
-| Clearance Probe Height | `60` |
-| Recheck Clearance While Channelling | ✘ |
-| Intensity Curve Name | `EffectIntensity` (default) |
-| Intensity Parameter | `Intensity` (default) |
-| Fade Parameter | `FadeAlpha` (default) |
+| DirectionalBurst | |
+| Empty | |
+| Empty001 | |
 
-5. Compile and save.
+## 5.4 Wrap each spawn rate as `Existing × Intensity × FadeAlpha`
 
-## 7.1a Match the cast ladder to the gesture
+Do this once per emitter, using that emitter's own noted number.
 
-By default the working opens at the end of the cast ladder, which is **4.2 seconds**. Your
-Begin clip is roughly **1.3 seconds**. Left alone, the character completes the gesture and
-then holds the finished pose for another three seconds before anything ignites.
+10. Select the emitter. Go to **Emitter Update → Spawn Rate**.
+11. Click the **small dropdown arrow to the right of the Spawn Rate value field.** A menu
+    appears with sections including *Set a Local Value*, *Link Inputs* and
+    *Dynamic Inputs*.
+12. Under **Dynamic Inputs**, choose **Multiply Float by Float**. Two sub-inputs, **A**
+    and **B**, appear.
+13. Type your noted number into **A**.
+14. Click **B's dropdown → Link Inputs → User.Intensity**.
+15. Click the **top-level Spawn Rate** dropdown again → **Dynamic Inputs → Multiply Float
+    by Float**. This wraps what you just built; the previous multiply moves under **A**.
+16. Click the new **B's dropdown → Link Inputs → User.FadeAlpha**.
 
-Open `DT_Cantrips`, row `Pyretics_1`, expand **Cast Tiers → Tier Thresholds**, and set the
-five entries to fit inside the Begin clip — for a 1.3s gesture:
+Result: `(Existing × Intensity) × FadeAlpha`.
+
+If step 15 puts your work in the wrong slot, undo and build outermost-first instead: make
+the top multiply, link **B** to `FadeAlpha`, then give **A** its own Multiply Float by
+Float holding the number and `Intensity`.
+
+17. Repeat for all three emitters.
+
+## 5.5 Set the velocity to Local space — the one that will bite you
+
+For each of the three emitters:
+
+18. **Particle Spawn → Add Velocity.**
+19. Set **Rotation Coordinate Space** to **`Local`**.
+
+This is what makes the flame come out of the hand in the direction the hand is pointing.
+Left on World, the fire fires along a fixed world axis no matter which way the character
+faces, and it looks broken from the very first test.
+
+While you are in there, check **Particle Spawn → Sphere Location → Radius**. It wants to
+be small — around `10` — so the fire emanates from a point in the hand rather than a
+cloud around it. The pack may already have it low; only change it if it is large.
+
+## 5.6 Add collision, so fire does not pour through walls
+
+The downloaded system has no Collision module. Without one the flame passes through
+geometry, which for a hand-projected gout at close range is very visible.
+
+For each of the three emitters:
+
+20. Click the **+** at the top of the **Particle Update** section.
+21. Search `Collision` and add it.
+22. **Drag the module so it sits below Acceleration Force.** Order matters in Niagara.
+23. Set **CPU Collision Trace Channel** to **`Pawn`** on all three. This is easily missed
+    and a wrong value produces odd behaviour rather than obvious failure.
+
+Then per emitter:
+
+| Setting | DirectionalBurst | Empty | Empty001 |
+|---|---|---|---|
+| Restitution | `0.05` | `0.7` | `0.7` |
+| Randomize Collision Normal Vector | `0.2` | `0.2` | `0.2` |
+| Friction | `0.9` | `0.9` | `0.9` |
+| Friction During Bounce | `0.9` | `0.3` | `0.5` |
+| Advanced → Advance Aging Rate | — | `5` | `5` |
+
+The mixed restitution is deliberate: one emitter's particles die roughly where they land
+while the others skitter off surfaces, and that difference is what stops the collision
+reading as uniform rubber-ball bouncing.
+
+`Advance Aging Rate` makes particles age faster once they have hit something, so fire
+does not pile into a bright wad against a wall.
+
+## 5.7 Confirm it loops
+
+24. Select each emitter, open **Emitter State**, and check **Loop Behavior**.
+25. It should be **Infinite**. If any emitter is set to `Once`, change it.
+
+A channelled cantrip runs for as long as the key is held. An emitter set to fire once
+will burn for its loop duration and then quietly stop while the player is still holding.
+
+## 5.8 Light
+
+26. If any emitter has a **Light Renderer**, untick it.
+
+Particle lights cost roughly **20 fps** at high intensity against about **2 fps** without,
+and the fire still reads as self-lit because the sprites are emissive. If you want the
+flamethrower to genuinely light the room, do it the way Illuminate does — one point
+light, not thousands of particle lights. The Appendix has that machinery already.
+
+## 5.9 Save, and why the preview looks empty
+
+27. **Compile**, then **Save**.
+
+**The preview now shows no particles at all.** Both user parameters default to 0, and
+anything multiplied by zero is zero. This is correct, and it is the quickest confirmation
+that 5.4 is wired properly.
+
+To look at it: temporarily set `Intensity` and `FadeAlpha` to `1` in the **User Exposed
+Parameters** panel. **Set them both back to 0 before saving** — saved at 1, the system
+bursts at full strength the instant it spawns, before the ability has said anything.
+
+## 5.10 Keep it on CPU
+
+Do not convert these emitters to GPU. GPU collision does not behave well here, and more
+importantly we will later want the collision data passed back out — what is burning, how
+fast — which only CPU emitters can provide.
+
+---
+
+# Part 6 — The looping sound (already built)
+
+**You already have this**, from the earlier fire work:
+
+```
+Content/_Custom/Audio/Character/Abilities/Fire/FlamethrowerChannel_Cue
+```
+
+Read from the asset, it already contains:
+
+- a **Random** node choosing between `Flamethrower_01` and `Flamethrower_02` — the
+  two-source variation the tutorial builds by hand in Audacity
+- looping set on the wave players
+- **Attenuation Settings** → `FootstepsHardSurfaceAttenuation`, which is exactly the
+  asset this part would have told you to assign
+
+So there is nothing to build. Two things to confirm:
+
+1. Open the cue and check **Looping** is ticked on **both** Wave Player nodes.
+2. In Part 7, set **Channel Sound** to `FlamethrowerChannel_Cue`.
+
+## 6.1 What you are deliberately not building
+
+The tutorial wires an Event Tick that reads the animation curve and drives volume and
+pitch. Skip all of it. `GA_ChannelledCantrip` already samples the curve every 33ms and
+writes both, from the same source that drives the Niagara — so the fire and its sound
+cannot drift apart.
+
+---
+
+# Part 7 — The ability Blueprint, timing, and the table row
+
+## 7.1 The ability already exists — fix one field
+
+`Content/_Custom/GAS/GameplayAbilities/Cantrips/Primal/GA_Primal_EldritchPrime` is
+already there, already parented to `GA_ChannelledCantrip`, and already has `DT_Cantrips`
+assigned. You do not create anything.
+
+**One field is wrong and it is the only thing blocking the whole cantrip.**
+
+1. Open it, click **Class Defaults**.
+2. Change **Cantrip Row** from `Primal_2` to:
+
+```
+EldritchPrime
+```
+
+Rows in `DT_Cantrips` are keyed by the cantrip's NAME, not by `<Art>_<Level>`. With the
+wrong key the ability activates, fails to find its row, and fizzles without ever opening
+a channel — which is exactly the "nothing happens" you were seeing, and it logs
+`Cantrip row 'Primal_2' not found.` every single time.
+
+Then set the rest:
+
+| Section | Property | Value |
+|---|---|---|
+| Cantrip | Cantrip Table | `DT_Cantrips` (already set) |
+| Cantrip | Cantrip Row | `EldritchPrime` |
+| Cantrip | Realms Used | one element: `Actor` |
+| Cantrip | Glamour Cost Effect | your Glamour cost GE |
+| Sustained | Sustained Effect | `NS_Cantrip_Flamethrower` |
+| Sustained | Attach Socket | `hand_rSocket` |
+| Sustained | Attach Offset | `0, 0, -20` |
+| Sustained | Sustained Pose | `Both Hands Raised` |
+| Sustained | Fade Parameter | `FadeAlpha` (default) |
+| Sustained | Fade Out Seconds | `0.5` (default) |
+| Channelled | Channel Sound | `FlamethrowerChannel_Cue` |
+| Channelled | Channel Pitch Range | `0.9, 1.1` |
+| Channelled | Lock Movement While Channelling | ✔ |
+| Channelled | Forward Clearance | `120` |
+| Channelled | Clearance Probe Height | `60` |
+| Channelled | Recheck Clearance While Channelling | ✘ |
+| Channelled | Intensity Curve Name | `EffectIntensity` (default) |
+| Channelled | Intensity Parameter | `Intensity` (default) |
+
+3. **Compile and save.**
+
+### One design note, for later
+
+Eldritch Prime is *"conjure raw manifestations of the elements"* — Primal 2, and its row's
+Element is currently **Earth**. Hard-wiring a fire Niagara into it makes the whole cantrip
+mean "flamethrower", when the book's version commands any of the four.
+
+Nothing to do now. But when a second element wants the same cantrip, the effect wants to
+come off the caster's chosen element rather than off the ability's defaults — the
+`CantripElement` variable on the anim instance already exists for exactly that. If you
+would rather keep it simple, change the row's Element to `Fire` and treat this cantrip as
+the fire one.
+
+## 7.2 Match the cast ladder to the gesture — do not skip this
+
+By default the working opens at the end of the cast ladder, at **4.2 seconds**. Your
+Begin clip is roughly **1.3 seconds**. Left alone, the character completes the whole
+gesture and then stands holding the finished pose for another three seconds before
+anything ignites. It reads as the game having hung.
+
+8. Open `DT_Cantrips`, find row `EldritchPrime`.
+9. Expand **Cast Tiers → Tier Thresholds**.
+10. Set the five entries to fit inside the Begin clip. For a 1.3s gesture:
 
 ```
 0.25, 0.5, 0.8, 1.05, 1.3
@@ -663,106 +787,136 @@ five entries to fit inside the Begin clip — for a 1.3s gesture:
 
 Now the flame kindles on the frame the arms finish coming forward.
 
-If you would rather keep the long ladder and just have the flame appear earlier, set
-**Channel Opens After Seconds** on the ability instead — it overrides the ladder for
-timing purposes only.
+**Alternative:** to keep the long ladder and just have the flame appear earlier, set
+**Channel Opens After Seconds** on the ability instead. It overrides the ladder for
+timing only.
 
-Either way the ordering is safe: the C++ latches the animation's effect-start cue, so
+**Either way the ordering is safe.** The C++ latches the animation's effect-start cue, so
 whichever of the gesture and the roll finishes second is the one that spawns the flame.
-Getting this wrong costs you a pause, not a broken cantrip.
+Getting this wrong costs a pause, not a broken cantrip.
 
-## 7.2 The table row
+## 7.3 The table row
 
-6. Open `DT_Cantrips` and find row `Pyretics_1`.
-7. Set **Kind** to `Channelled (held)`.
-8. Set **Element** to `Fire`.
-9. Expand **Anims** and set:
-   - **Begin** → `A_Cantrip_Channel_Begin`
-   - **Loop** → `A_Cantrip_Channel_Loop`
-   - **End** → `A_Cantrip_Channel_End`
-10. Save.
+Still in `DT_Cantrips`, row `EldritchPrime`:
+
+11. **Kind** → `Channelled (held)`
+12. **Element** → `Fire`
+13. Expand **Anims**:
+    - **Begin** → `A_Cantrip_Channel_Begin`
+    - **Loop** → `A_Cantrip_Channel_Loop`
+    - **End** → `A_Cantrip_Channel_End`
+14. **Save.**
+
+`Kind` is not decoration — it is how a row and its ability class declare the same shape,
+so a mismatch can be caught rather than silently producing a cantrip that behaves unlike
+its description.
 
 ---
 
 # Part 8 — Input
 
-1. Open `BP_ThirdPersonCharacter` → **Class Defaults** → find **Default Abilities** and
-   add an entry: `GA_Pyretics`.
-2. Create an Input Action `IA_Cantrip_Fire`, Value Type **Boolean**.
-3. Add it to your Input Mapping Context on whatever key you want.
-4. In the character's Event Graph, add the `IA_Cantrip_Fire` event node and wire:
+## 8.1 Grant the ability
 
-| Pin | Node |
-|---|---|
-| **Started** | `Try Activate Ability by Class` — Target: self (its ASC), Ability Class: `GA_Pyretics` |
-| **Completed** | `Stop Channelling` — Target: self |
-| **Canceled** | `Stop Channelling` — Target: self |
+1. Open `BP_ThirdPersonCharacter` → **Class Defaults**.
+2. Find **Abilities → Default Abilities**.
+3. Click **+** and set the new entry to `GA_Primal_EldritchPrime`.
 
-Three nodes. `Stop Channelling` handles both meanings of letting go on its own — no
-branch, no stored reference, no flip-flop, no retriggerable delay.
+## 8.2 Create the input action
 
-## How it plays
+4. In your Input folder, **right-click → Input → Input Action**.
+5. Name it `IA_Cantrip_Fire`.
+6. Open it, set **Value Type** to `Digital (bool)`.
+7. Open your **Input Mapping Context**, click **+** on **Mappings**, choose
+   `IA_Cantrip_Fire`, and bind it to a key.
 
-Hold the key. The wind-up runs, and at the end of the cast ladder the working opens by
-itself and the flame appears — **you do not release to fire it**. Keep holding and it
-keeps burning. Let go and it goes out.
+## 8.3 Three nodes
 
-Letting go **during** the wind-up, before the flame ever appears, abandons the cast
-entirely: no roll, no Glamour, nothing happens. A channel has no weaker version to fire,
-so an abandoned wind-up reads as changing your mind rather than as a fizzle you paid for.
+8. In `BP_ThirdPersonCharacter`'s **Event Graph**, right-click → search
+   `IA_Cantrip_Fire` → add the **EnhancedInputAction IA_Cantrip_Fire** event node. It has
+   output pins: Triggered, Started, Completed, Canceled.
 
-One consequence worth knowing: because the channel always resolves at the top of the
-cast ladder, the cast-time tiers do not vary a channelled cantrip's difficulty the way
-they vary an ordinary one's. The sustained gesture *is* the full performance.
+9. From **Started**, add **Try Activate Ability by Class**:
+   - **Target**: drag from self → **Get Ability System Component**
+   - **Ability Class**: `GA_Primal_EldritchPrime`
+
+10. From **Completed**, add **Stop Channelling** (Target: self).
+11. From **Canceled**, add **Stop Channelling** (Target: self).
+
+That is the whole binding. No branch, no stored reference, no flip-flop, no
+retriggerable delay — `Stop Channelling` handles both meanings of letting go, and does
+nothing harmlessly if nothing is running.
+
+12. **Compile and save.**
+
+## 8.4 How it plays, so you can tell working from broken
+
+Hold the key. The wind-up gesture runs. At the end of the cast ladder the working opens
+**by itself** and the flame appears — **you do not release to fire it.** Keep holding and
+it keeps burning. Let go and it goes out.
+
+Releasing **during** the wind-up, before the flame appears, abandons the cast entirely:
+no roll, no Glamour, nothing happens. A channel has no weaker version to fire, so an
+abandoned wind-up reads as changing your mind rather than as a fizzle you paid for.
+
+One consequence worth understanding: because a channel always resolves at the top of the
+cast ladder, the cast-time tiers do **not** vary a channelled cantrip's difficulty the way
+they vary an ordinary cantrip's. The sustained gesture *is* the full performance. That is
+why 7.2 is about timing and not about power.
 
 ---
 
 # Part 9 — Foot IK
 
-1. In `ABP_Unarmed`'s AnimGraph, find the foot-IK **Control Rig** node
-   (it references `CR_Mannequin_FootIK`).
-2. Select it. In Details, set **Alpha Input Type** to **Bool**.
-3. Drag in `bAllowFootIK` and connect it to the **Alpha Bool Value** pin.
-4. Compile and save.
+1. In `ABP_Unarmed`'s **AnimGraph**, find the foot-IK **Control Rig** node. It references
+   `CR_Mannequin_FootIK` or similar.
+2. Select it.
+3. In **Details**, set **Alpha Input Type** to **Bool**.
+4. A new **Alpha Bool Value** pin appears on the node.
+5. Drag `bAllowFootIK` from My Blueprint into the graph and connect it to that pin.
+6. **Compile and save.**
 
-The casting clips were authored for a stationary body and have no ground contact to
-solve against, so IK against them lifts the feet clear of the floor. `bAllowFootIK` is
-derived in C++ and never set, so it cannot get stuck off after a cast that ended badly.
+The casting clips were authored for a stationary body and have no ground contact to solve
+against, so IK against them lifts the feet clear of the floor.
+
+`bAllowFootIK` is `NOT casting AND NOT falling`, derived in C++ every frame. Because
+nothing ever sets it, it cannot get stuck off after a cast that ended badly — which is
+exactly the failure mode of doing this with a Blueprint boolean.
 
 ---
 
 # Part 10 — Test
 
-Work down this list in order. Each step isolates one part.
+Work down this list in order. Each step isolates one part, so the first thing that fails
+tells you where to look.
 
-1. **Press and hold the key.** The wind-up animation plays. Feet stay on the ground.
-2. **Keep holding.** The flame appears as the arms finish coming forward, pointing
-   forward from the hands, with the sound fading in underneath it.
-3. **Try to walk while holding.** You should not move at all.
-4. **Release.** The recovery animation plays, the flame thins out over about half a
-   second rather than vanishing, and you get movement back.
-5. **Release during the wind-up**, before the flame appears. Nothing should happen at
-   all — no flame, no sound, no cost.
-6. **Spam the key.** No stuck poses, no permanent flame, nothing in the output log.
-7. **Stand a foot from a wall and cast.** The channel should refuse rather than firing
-   through the wall.
+| # | Do this | Expect | If it fails |
+|---|---|---|---|
+| 1 | Press and hold the key | Wind-up plays, feet stay on the ground | Parts 2, 9 |
+| 2 | Keep holding | Flame appears as the arms finish, sound fading in under it | Parts 3.1, 5, 7.2 |
+| 3 | Try to walk while holding | No movement at all | Part 7.1 (Lock Movement) |
+| 4 | Release | Recovery plays, flame thins over ~½s, movement returns | Parts 3.2, 5.5 |
+| 5 | Release during the wind-up | Nothing at all — no flame, no sound, no cost | Part 2, transition #8 |
+| 6 | Spam the key | No stuck poses, no permanent flame, clean output log | Part 2 |
+| 7 | Stand a foot from a wall and cast | Refuses rather than firing through it | Part 7.1 (Forward Clearance) |
 
 ## Troubleshooting
 
 | Symptom | Cause |
 |---|---|
-| Short pause before you can move after every cast | `CantripRecovered` misspelled, or on the wrong transition. The 1.5s safety timeout is doing the work instead. Check Part 3.2 |
-| Never able to move after a cast | The safety timeout is not the issue — check that the character Blueprint derives from `ACHANGELINGCharacter` |
-| No flame at all, ever | `Intensity`/`FadeAlpha` misspelled in Niagara, or the spawn-rate multiply chain is not wired |
-| Flame appears but never at the right moment | `CantripEffectStart` misspelled. The 1-second fallback is firing it instead |
-| Flame fires off sideways or in a fixed world direction | A **Rotation Coordinate Space** left on World instead of Local |
-| Fire passes through the character or through walls | A **CPU Collision Trace Channel** left on World Dynamic instead of `Pawn` |
-| Character twitches every couple of seconds while channelling | Loop A/B ping-pong not set up, or Loop B missing Play Rate −1 / Start Position 1.0 |
-| Feet float during the cast | Part 9 not done |
-| Gesture completes, then a long wait before the flame | Cast ladder longer than the Begin clip — Part 7.1a |
-| Wind-up never plays; character stands still then the flame appears | Transition #1 keyed off `bCantripChannelling` instead of `bCantripCasting` |
+| Short consistent pause before you can move after every cast | `CantripRecovered` misspelled, or in **Start** instead of **End** Transition Event — Part 3.2 |
+| Never able to move after a cast | Character Blueprint does not derive from `ACHANGELINGCharacter` |
+| No flame at all, ever | `Intensity`/`FadeAlpha` misspelled in Niagara, or the multiply chain is not wired — Parts 5.5, 5.6 |
+| Flame appears at a fixed beat that never matches the gesture | `CantripEffectStart` misspelled; the 1s fallback is firing it — Part 3.1 |
+| Gesture completes, then a long wait before the flame | Cast ladder longer than the Begin clip — Part 7.2 |
+| Wind-up never plays; character stands still, then flame | Transition #1 keyed off `bCantripChannelling` instead of `bCantripCasting` |
 | End animation fires the instant the loop starts | Transitions #5/#6 keyed off `NOT bCantripChannelling` instead of `bCantripRecovering` |
-| Cast does nothing and the log mentions a row | `Cantrip Row` does not match a row name in `DT_Cantrips` |
+| Flame fires sideways or in a fixed world direction | A **Rotation Coordinate Space** left on World — Parts 5.7–5.9 |
+| Fire passes through the character or through walls | A **CPU Collision Trace Channel** left on World Dynamic — Parts 5.7–5.9 |
+| Character twitches every couple of seconds while channelling | Loop B missing **Play Rate −1** / **Start Position 1.0** — Part 2.3 |
+| Flame bursts at full strength the instant it spawns | `Intensity`/`FadeAlpha` saved at 1 in the Niagara preview — Part 5.10 |
+| Feet float during the cast | Part 9 not done |
+| Sound plays but never changes volume | Curve missing or misnamed — Part 4. Not fatal; C++ falls back to full strength |
+| Cast does nothing, log mentions a row | `Cantrip Row` does not match a row name in `DT_Cantrips` |
 
 ---
 

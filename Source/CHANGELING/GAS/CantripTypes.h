@@ -82,6 +82,32 @@ enum class ECantripKind : uint8
 	Summon    UMETA(DisplayName = "Summon")
 };
 
+/**
+ * What decides which way a projected working points.
+ *
+ * Separated from the socket that decides WHERE it starts, because those are genuinely
+ * different questions and the hand answers only the first one well. A wrist bone's axes
+ * are an accident of how the skeleton was authored, and an arm's animation swings them
+ * around while the caster stands still.
+ */
+UENUM(BlueprintType)
+enum class ECantripAimSource : uint8
+{
+	/** The socket's own rotation. Right for a torch, which should follow the hand. */
+	Socket        UMETA(DisplayName = "Socket (follows the hand)"),
+
+	/** The way the body faces. Steady, and ignores what the arms are doing. */
+	ActorForward  UMETA(DisplayName = "Body facing"),
+
+	/**
+	 * Where the caster is LOOKING -- camera for a player, focus for AI.
+	 *
+	 * Read from the pawn's base aim rotation rather than the controller directly, so
+	 * an AI caster aims by the same rule a player does instead of needing its own path.
+	 */
+	ViewDirection UMETA(DisplayName = "Eyeline (aims where you look)")
+};
+
 UENUM(BlueprintType)
 enum class ECantripRealm : uint8
 {

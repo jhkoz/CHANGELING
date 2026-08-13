@@ -253,7 +253,7 @@ void UGA_SustainedCantrip::SpawnSustainedEffect()
 	}
 
 	SustainedComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
-		SustainedEffect, Mesh, AttachSocket, AttachOffset, FRotator::ZeroRotator,
+		SustainedEffect, Mesh, AttachSocket, AttachOffset, AttachRotation,
 		EAttachLocation::SnapToTargetIncludingScale, /*bAutoDestroy*/ false,
 		/*bAutoActivate*/ true);
 
@@ -263,6 +263,91 @@ void UGA_SustainedCantrip::SpawnSustainedEffect()
 	{
 		SustainedComponent->SetVariableFloat(FadeParameter, 1.0f);
 	}
+
+	const bool bDrivesAim = (AimSource != ECantripAimSource::Socket);
+
+	if (SustainedComponent && bDrivesAim)
+	{
+		// Absolute rotation: the component keeps taking its POSITION from the socket
+		// while its direction stops being inherited at all. Without this the socket's
+		// rotation would keep composing with whatever we set.
+		SustainedComponent->SetUsingAbsoluteRotation(true);
+	}
+
+	if (SustainedComponent && (bDrivesAim || !SecondaryAttachSocket.IsNone()))
+	{
+		UpdateHandSpan();
+
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(HandSpanTimer,
+				FTimerDelegate::CreateUObject(this, &UGA_SustainedCantrip::UpdateHandSpan),
+				1.0f / 60.0f, true);
+		}
+	}
+}
+
+void UGA_SustainedCantrip::UpdateHandSpan()
+{
+	if (!SustainedComponent)
+	{
+		return;
+	}
+
+	AActor* Avatar = GetAvatarActorFromActorInfo();
+	const ACharacter* Character = Cast<ACharacter>(Avatar);
+	const USkeletalMeshComponent* Mesh = Character ? Character->GetMesh() : nullptr;
+	if (!Mesh)
+	{
+		return;
+	}
+
+	if (AimSource != ECantripAimSource::Socket && Avatar)
+	{
+		FRotator Aim = Avatar->GetActorRotation();
+
+		if (AimSource == ECantripAimSource::ViewDirection)
+		{
+			// Base aim rotation rather than the controller's: it already resolves to the
+			// view for a possessed pawn and to the focus for an AI one, so a summoned
+			// caster aims by the same rule the player does without a second code path.
+			if (const APawn* Pawn = Cast<APawn>(Avatar))
+			{
+				Aim = Pawn->GetBaseAimRotation();
+			}
+		}
+
+		// Composed rather than assigned, so AttachRotation reads as an aim adjustment
+		// relative to wherever the caster is pointed.
+		SustainedComponent->SetWorldRotation(Aim + AttachRotation);
+	}
+
+	if (SecondaryAttachSocket.IsNone())
+	{
+		return;
+	}
+
+	if (!Mesh->DoesSocketExist(SecondaryAttachSocket))
+	{
+		// Loud once, then stop trying: the symptom is an effect that simply sits on one
+		// hand, which looks like a design choice rather than a typo.
+		UE_LOG(LogSustainedCantrip, Warning,
+			TEXT("Secondary socket '%s' not found -- effect stays on '%s'."),
+			*SecondaryAttachSocket.ToString(), *AttachSocket.ToString());
+
+		SecondaryAttachSocket = NAME_None;
+		return;
+	}
+
+	// Expressed in the PRIMARY socket's space, because that is what the component is
+	// parented to. Setting a relative offset leaves the parent to carry all the motion,
+	// so the effect tracks the hand perfectly however fast the character moves and only
+	// the slowly-changing span between the hands is resampled.
+	const FTransform Primary = Mesh->GetSocketTransform(AttachSocket);
+	const FVector Secondary = Mesh->GetSocketLocation(SecondaryAttachSocket);
+	const FVector MidLocal = Primary.InverseTransformPosition(Secondary) * 0.5f;
+
+	SustainedComponent->SetRelativeLocation(MidLocal + AttachOffset);
 }
 
 void UGA_SustainedCantrip::SpawnSustainedLight()
@@ -356,6 +441,7 @@ void UGA_SustainedCantrip::StopSustain(bool bRanOut)
 		World->GetTimerManager().ClearTimer(DurationTimer);
 		World->GetTimerManager().ClearTimer(SpawnDelayTimer);
 		World->GetTimerManager().ClearTimer(FlickerTimer);
+		World->GetTimerManager().ClearTimer(HandSpanTimer);
 	}
 
 	if (SustainedLight)

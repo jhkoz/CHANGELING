@@ -65,7 +65,7 @@ public:
 
 	/** End this one early. Reports as doused rather than expired. */
 	UFUNCTION(BlueprintCallable, Category = "Cantrip|Sustained")
-	void CancelSustain();
+	virtual void CancelSustain();
 
 	/** True while the working is held open. */
 	UFUNCTION(BlueprintPure, Category = "Cantrip|Sustained")
@@ -87,10 +87,54 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained")
 	FName AttachSocket = TEXT("hand_rSocket");
 
+	/**
+	 * Optional second socket. When set, the effect sits MIDWAY between the two.
+	 *
+	 * A two-handed working should burn in the space the hands are holding open, not
+	 * hang off one wrist. Leave it None and the effect stays on AttachSocket alone,
+	 *·which is what a torch wants.
+	 *
+	 * The component still parents to the primary socket, so it inherits that socket's
+	 * motion smoothly every frame; only the midway OFFSET is recomputed on a timer.
+	 * Attaching to nothing and driving the whole world transform at the sample rate
+	 * would visibly step whenever the character moved.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained")
+	FName SecondaryAttachSocket = NAME_None;
+
 	/** Nudge relative to the socket. Slightly negative Z seats a flame IN the palm
 	 *  rather than hovering above it. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained")
 	FVector AttachOffset = FVector(0.0f, 0.0f, -20.0f);
+
+	/**
+	 * Rotation relative to the socket.
+	 *
+	 * Matters for anything that projects rather than just sitting there. A socket's
+	 * axes follow the BONE, and hand bones point back along the forearm as often as
+	 * they point out of the palm -- so an emitter firing along its local +X can come
+	 * out backwards through the caster's own arm.
+	 *
+	 * Correcting it here rather than in the emitter keeps one number in one place,
+	 * instead of negated velocities scattered through every emitter of a system whose
+	 * tuning came from someone else. Yaw 180 is the usual answer.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained")
+	FRotator AttachRotation = FRotator::ZeroRotator;
+
+	/**
+	 * What decides the direction, as opposed to AttachSocket deciding the position.
+	 *
+	 * Socket is the old behaviour and right for a torch. Anything PROJECTED wants one
+	 * of the other two, which removes the whole class of problem where a wrist bone's
+	 * axes send the flame backwards or the arm's animation swings the stream around.
+	 *
+	 * AttachRotation still applies on top, so with a non-Socket source it reads as a
+	 * plain aim adjustment -- pitch to raise the nose, yaw to lead the off-hand --
+	 * rather than a correction for an axis convention you cannot see.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained")
+	ECantripAimSource AimSource = ECantripAimSource::Socket;
 
 	/** Attitude forced on the body while this runs. Read by the AnimBP. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained")
@@ -239,13 +283,22 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Cantrip|Sustained")
 	void OnSustainEnded(bool bRanOut);
 
+protected:
+	/**
+	 * Put the working out and start its fade, WITHOUT ending the ability.
+	 *
+	 * Separated from CancelSustain so a subclass can keep the caster committed while
+	 * the effect dies -- releasing and recovering are not the same instant.
+	 */
+	void StopSustain(bool bRanOut);
+
 private:
 	void BeginSustain(int32 Successes);
 	void HandleExpired();
 	float DurationForSuccesses(int32 Successes) const;
-	void StopSustain(bool bRanOut);
 	void SpawnSustainedLight();
 	void UpdateLightFlicker();
+	void UpdateHandSpan();
 
 	UPROPERTY() TObjectPtr<UNiagaraComponent> SustainedComponent;
 	UPROPERTY() TObjectPtr<UPointLightComponent> SustainedLight;
@@ -254,6 +307,7 @@ private:
 	FTimerHandle DurationTimer;
 	FTimerHandle SpawnDelayTimer;
 	FTimerHandle FlickerTimer;
+	FTimerHandle HandSpanTimer;
 
 	/** Successes on the roll that lit this, kept so the light can be sized from it at
 	 *  spawn time -- which happens a beat later than the roll. */
