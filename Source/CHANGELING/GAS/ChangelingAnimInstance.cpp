@@ -43,10 +43,39 @@ void UChangelingAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	}
 
 	RefreshCantripState();
+	RefreshAim(DeltaSeconds);
 
 	// Both conditions are about the same thing: the clip driving the legs has no
 	// ground contact worth solving against.
 	bAllowFootIK = !bCantripCasting && !bIsFalling;
+}
+
+void UChangelingAnimInstance::RefreshAim(float DeltaSeconds)
+{
+	bAimingActive = ChangelingCharacter && ChangelingCharacter->IsAiming();
+
+	FRotator Target = FRotator::ZeroRotator;
+
+	if (bAimingActive)
+	{
+		// Base aim rotation rather than the controller's, so an AI caster aims by the
+		// same rule a player does. Normalized delta, because a raw subtraction wraps at
+		// 180 and would send the spine the long way round.
+		const FRotator Look = ChangelingCharacter->GetBaseAimRotation();
+		const FRotator Body = ChangelingCharacter->GetActorRotation();
+		Target = (Look - Body).GetNormalized();
+
+		Target.Yaw   = FMath::Clamp(Target.Yaw,   -MaxAimYaw,   MaxAimYaw);
+		Target.Pitch = FMath::Clamp(Target.Pitch, -MaxAimPitch, MaxAimPitch);
+		Target.Roll  = 0.0f;
+	}
+
+	// Interpolated in both directions, so releasing the stance unwinds rather than
+	// snapping straight. Zero is just another target.
+	SpineAim = FMath::RInterpTo(SpineAim, Target, DeltaSeconds, AimInterpSpeed);
+
+	const float Share = 1.0f / FMath::Max(1, SpineBoneCount);
+	SpineBoneAim = FRotator(SpineAim.Pitch * Share, SpineAim.Yaw * Share, 0.0f);
 }
 
 void UChangelingAnimInstance::RefreshCantripState()

@@ -157,6 +157,27 @@ protected:
 
 public:
 	/**
+	 * Aiming: the body turns to follow where the camera looks.
+	 *
+	 * A toggle rather than a hold, because aiming is a stance you are in, not a button
+	 * you fight. Replicated so other clients see the caster turn to face what they are
+	 * about to do -- being aimed at is information the target should have.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Aiming")
+	void SetAiming(bool bNewAiming);
+
+	UFUNCTION(BlueprintCallable, Category = "Aiming")
+	void ToggleAiming() { SetAiming(!bAiming); }
+
+	UFUNCTION(BlueprintPure, Category = "Aiming")
+	bool IsAiming() const { return bAiming; }
+
+protected:
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Aiming")
+	bool bAiming = false;
+
+public:
+	/**
 	 * True when something solid is close enough to the raised hand that the arm needs
 	 * pulling back. The AnimBP reads this to gate its Two Bone IK.
 	 *

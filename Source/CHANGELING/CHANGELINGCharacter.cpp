@@ -319,6 +319,24 @@ void ACHANGELINGCharacter::GetLifetimeReplicatedProps(
 	// Simulated proxies need it too: the raised arm is the whole tell that
 	// someone is holding a working open.
 	DOREPLIFETIME(ACHANGELINGCharacter, CantripPose);
+
+	// Being aimed at is information the target should have, so it travels.
+	DOREPLIFETIME(ACHANGELINGCharacter, bAiming);
+}
+
+void ACHANGELINGCharacter::SetAiming(bool bNewAiming)
+{
+	if (bAiming == bNewAiming)
+	{
+		return;
+	}
+
+	bAiming = bNewAiming;
+
+	// Deliberately does NOT turn the actor to face the camera. The whole point of
+	// aiming through the spine is that the body stays where it is and only twists --
+	// snapping the capsule's yaw as well would make the twist invisible and the
+	// character spin on the spot every time the camera moved.
 }
 
 void ACHANGELINGCharacter::Tick(float DeltaSeconds)

@@ -115,6 +115,55 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Cantrip")
 	bool bAllowFootIK = true;
 
+	// ── Aiming ──────────────────────────────────────────────────────────────
+	//
+	// The caster turns to look where the camera looks, by twisting the spine rather
+	// than by spinning the whole capsule. Every part of that is solved here so the
+	// AnimGraph does no arithmetic: it plugs ONE rotator into five Modify Bone nodes.
+
+	/** True while the aiming stance is held. Drives the Modify Bone nodes' alpha. */
+	UPROPERTY(BlueprintReadOnly, Category = "Aiming")
+	bool bAimingActive = false;
+
+	/**
+	 * The share of the aim each spine bone takes: the total divided by the bone count.
+	 *
+	 * Plug this same rotator into ALL FIVE Modify Bone nodes. Splitting the turn evenly
+	 * down the spine is what makes it read as a body twisting rather than a head being
+	 * wrenched round -- one bone taking the whole 75 degrees looks broken.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Aiming")
+	FRotator SpineBoneAim = FRotator::ZeroRotator;
+
+	/** The whole clamped, smoothed aim offset, before dividing. For anything that
+	 *  wants the total rather than a bone's share. */
+	UPROPERTY(BlueprintReadOnly, Category = "Aiming")
+	FRotator SpineAim = FRotator::ZeroRotator;
+
+	/** How many bones the turn is divided between. Five spine bones on Manny. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
+		meta = (ClampMin = "1"))
+	int32 SpineBoneCount = 5;
+
+	/**
+	 * Limits on the whole turn, in degrees either side.
+	 *
+	 * A spine has a range; past it the mesh shears and the silhouette breaks. Clamping
+	 * means looking hard over your shoulder simply stops at the limit rather than
+	 * folding the character in half.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming")
+	float MaxAimYaw = 75.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming")
+	float MaxAimPitch = 60.0f;
+
+	/** How fast the twist chases the camera. Interpolated rather than snapped: the
+	 *  camera can flick instantly and a body cannot. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
+		meta = (ClampMin = "0.1"))
+	float AimInterpSpeed = 10.0f;
+
 	UPROPERTY(BlueprintReadOnly, Category = "References")
 	TObjectPtr<ACHANGELINGCharacter> ChangelingCharacter;
 
@@ -146,6 +195,7 @@ public:
 
 private:
 	void RefreshCantripState();
+	void RefreshAim(float DeltaSeconds);
 
 	/** The cantrip currently running, or null. Cached because it is wanted every frame
 	 *  while casting and finding it means walking the ASC's activatable list. */
