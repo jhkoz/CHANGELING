@@ -176,32 +176,71 @@ public:
 	int32 SpineBoneCount = 5;
 
 	/**
-	 * How far the turn may go left or right, in degrees either side.
+	 * Limit on any ONE bone, in degrees either side.
 	 *
-	 * A spine has a range; past it the mesh shears and the silhouette breaks. Clamping
-	 * means looking hard over your shoulder simply stops at the limit rather than
-	 * folding the character in half. Spread over five bones, 75 is about 15 each.
+	 * Clamped per bone rather than on the total, so no single joint can be asked for
+	 * more than a joint can give however far the camera swings. Five spine bones at 15
+	 * is the ~75 degree arc; the ceiling is a property of the bone, not of the aim.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
-		meta = (ClampMin = "0.0", ClampMax = "120.0"))
-	float MaxAimYaw = 75.0f;
+		meta = (ClampMin = "0.0", ClampMax = "45.0"))
+	float MaxPerBoneAngle = 15.0f;
 
 	/**
-	 * How far the aim may tilt UP, in degrees.
+	 * How far the aim may tilt up and down, in degrees, before dividing.
 	 *
-	 * Deliberately smaller than the downward limit. A spine bends forward far more
-	 * readily than it arches back -- a body that leans as far backwards as it can fold
-	 * forwards reads as a puppet, and it drags the pelvis through the floor on the way.
+	 * Asymmetric on purpose: a spine bends forward far more readily than it arches
+	 * back, and an equal range either way reads as a puppet.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
 		meta = (ClampMin = "0.0", ClampMax = "90.0"))
 	float MaxAimPitchUp = 35.0f;
 
-	/** How far the aim may tilt DOWN. Larger, because folding forward is the easy
-	 *  direction and looking at your own feet is a thing people do. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
 		meta = (ClampMin = "0.0", ClampMax = "90.0"))
 	float MaxAimPitchDown = 55.0f;
+
+	/**
+	 * Sign flips mapping the aim's axes onto the BONE's axes.
+	 *
+	 * A rotator measured between two world rotations and a rotator applied to a spine
+	 * bone do not agree about which way is positive -- a skeleton's joint axes are an
+	 * authoring decision, not a convention. Left unmapped the character bends when it
+	 * should twist, or twists the wrong way.
+	 *
+	 * Exposed as settings rather than baked in because the right combination is a fact
+	 * about THIS skeleton, and finding it should cost one PIE session rather than a
+	 * recompile. Defaults follow the UE mannequin.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming|Axes")
+	float AimPitchSign = -1.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming|Axes")
+	float AimYawSign = 1.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming|Axes")
+	float AimRollSign = -1.0f;
+
+	/**
+	 * Send the aim's YAW to the bone's ROLL, and its roll to the bone's yaw.
+	 *
+	 * Needed when the bone's long axis runs up the spine, which is the usual authoring
+	 * for a spine chain: turning about that axis IS the twist, but it arrives named
+	 * roll. Without the swap, asking for yaw folds the character sideways instead.
+	 *
+	 * Leave off for Component Space, on for Bone Space.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming|Axes")
+	bool bSwapYawAndRoll = false;
+
+	/**
+	 * Only aim while a cantrip is being cast.
+	 *
+	 * On by default: a character who twists at the waist every time the camera moves
+	 * looks possessed. The stance belongs to the act of casting.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming")
+	bool bAimOnlyWhileCasting = true;
 
 	/** How fast the twist chases the camera. Interpolated rather than snapped: the
 	 *  camera can flick instantly and a body cannot. */
@@ -241,6 +280,9 @@ public:
 private:
 	void RefreshCantripState();
 	void RefreshAim(float DeltaSeconds);
+
+	/** One bone's share of the aim, mapped onto that bone's axes and clamped. */
+	FRotator MakeBoneAim(const FRotator& Aim, float Share) const;
 
 	/** The cantrip currently running, or null. Cached because it is wanted every frame
 	 *  while casting and finding it means walking the ASC's activatable list. */

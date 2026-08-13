@@ -52,7 +52,10 @@ void UChangelingAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 void UChangelingAnimInstance::RefreshAim(float DeltaSeconds)
 {
-	bAimingActive = ChangelingCharacter && ChangelingCharacter->IsAiming();
+	// The stance belongs to the act of casting: a character who twists at the waist
+	// every time the camera moves looks possessed.
+	bAimingActive = ChangelingCharacter && ChangelingCharacter->IsAiming()
+		&& (!bAimOnlyWhileCasting || bCantripCasting);
 
 	FRotator Target = FRotator::ZeroRotator;
 
@@ -65,15 +68,7 @@ void UChangelingAnimInstance::RefreshAim(float DeltaSeconds)
 		const FRotator Body = ChangelingCharacter->GetActorRotation();
 		Target = (Look - Body).GetNormalized();
 
-		Target.Yaw = FMath::Clamp(Target.Yaw, -MaxAimYaw, MaxAimYaw);
-
-		// Asymmetric on purpose. Positive pitch is up, and a spine arches back much
-		// less than it folds forward -- an equal range either way reads as a puppet.
 		Target.Pitch = FMath::Clamp(Target.Pitch, -MaxAimPitchDown, MaxAimPitchUp);
-
-		// Roll is never wanted here. Leaving it in would let the caster list sideways
-		// whenever the camera was banked, and nothing about looking somewhere should
-		// tip a body over.
 		Target.Roll = 0.0f;
 	}
 
@@ -87,11 +82,32 @@ void UChangelingAnimInstance::RefreshAim(float DeltaSeconds)
 	const float NeckPart = FMath::Clamp(NeckAimFraction, 0.0f, 1.0f);
 	const float SpinePart = 1.0f - NeckPart;
 
-	const float SpineShare = SpinePart / FMath::Max(1, SpineBoneCount);
-	const float NeckShare  = NeckPart  / FMath::Max(1, NeckBoneCount);
+	SpineBoneAim = MakeBoneAim(SpineAim, SpinePart / FMath::Max(1, SpineBoneCount));
+	NeckBoneAim  = MakeBoneAim(SpineAim, NeckPart  / FMath::Max(1, NeckBoneCount));
+}
 
-	SpineBoneAim = FRotator(SpineAim.Pitch * SpineShare, SpineAim.Yaw * SpineShare, 0.0f);
-	NeckBoneAim  = FRotator(SpineAim.Pitch * NeckShare,  SpineAim.Yaw * NeckShare,  0.0f);
+FRotator UChangelingAnimInstance::MakeBoneAim(const FRotator& Aim, float Share) const
+{
+	float Pitch = Aim.Pitch * Share * AimPitchSign;
+	float Yaw   = Aim.Yaw   * Share * AimYawSign;
+	float Roll  = Aim.Roll  * Share * AimRollSign;
+
+	// A bone whose long axis runs up the spine turns about that axis to twist, and that
+	// axis is named roll. Asking such a bone for yaw folds it sideways instead.
+	if (bSwapYawAndRoll)
+	{
+		Swap(Yaw, Roll);
+	}
+
+	// Clamped per bone rather than on the total, because the ceiling is a property of
+	// the joint. However far the camera swings, no single vertebra is asked for more
+	// than one vertebra can give.
+	const float Limit = FMath::Abs(MaxPerBoneAngle);
+
+	return FRotator(
+		FMath::Clamp(Pitch, -Limit, Limit),
+		FMath::Clamp(Yaw,   -Limit, Limit),
+		FMath::Clamp(Roll,  -Limit, Limit));
 }
 
 void UChangelingAnimInstance::RefreshCantripState()
