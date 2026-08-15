@@ -156,6 +156,16 @@ protected:
 	FName FadeParameter = TEXT("FadeAlpha");
 
 	/**
+	 * Niagara user parameter (Object) that receives particle collisions.
+	 *
+	 * The system's Export Particle Data module writes its collided particles to
+	 * whatever object is bound here; we bind the caster's burn component, which turns
+	 * them into scorch marks. Leave empty on anything that should not mark the world.
+	 */
+	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Cantrip|Sustained")
+	FName BurnHandlerParameter = TEXT("BurnHandler");
+
+	/**
 	 * Seconds to ramp the spawn rate down when the working ends.
 	 *
 	 * Spawning stops smoothly and the particles already alive finish their own

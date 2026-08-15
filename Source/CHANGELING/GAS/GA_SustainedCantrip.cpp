@@ -5,6 +5,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 #include "CHANGELINGCharacter.h"
+#include "CantripBurnComponent.h"
 #include "CantripInternal.h"
 #include "ChangelingAnimInstance.h"
 #include "ChangelingAttributeSet.h"
@@ -265,6 +266,20 @@ void UGA_SustainedCantrip::SpawnSustainedEffect()
 		SustainedComponent->SetVariableFloat(FadeParameter, 1.0f);
 	}
 
+	// Hand Niagara the thing that will receive its collisions. The component lives on
+	// the character rather than on this ability deliberately: Niagara keeps this as a
+	// plain object pointer, and an ability can end while its last particles are still
+	// in the air -- so pointing it here would point it at something that may be gone
+	// when the batch arrives.
+	if (SustainedComponent && !BurnHandlerParameter.IsNone())
+	{
+		if (UCantripBurnComponent* Burn =
+			Character->FindComponentByClass<UCantripBurnComponent>())
+		{
+			SustainedComponent->SetVariableObject(BurnHandlerParameter, Burn);
+		}
+	}
+
 	const bool bDrivesAim = (AimSource != ECantripAimSource::Socket);
 
 	if (SustainedComponent && bDrivesAim)
@@ -293,6 +308,19 @@ void UGA_SustainedCantrip::UpdateHandSpan()
 	if (!SustainedComponent)
 	{
 		return;
+	}
+
+	// Kept current rather than captured once. A collided particle knows where it
+	// stopped but not what it hit, so the surface is found by tracing along the flame's
+	// path -- and that path starts wherever the hand is NOW, not where it was when the
+	// working opened.
+	if (AActor* BurnOwner = GetAvatarActorFromActorInfo())
+	{
+		if (UCantripBurnComponent* Burn =
+			BurnOwner->FindComponentByClass<UCantripBurnComponent>())
+		{
+			Burn->SetFireOrigin(SustainedComponent->GetComponentLocation());
+		}
 	}
 
 	AActor* Avatar = GetAvatarActorFromActorInfo();
@@ -332,9 +360,18 @@ void UGA_SustainedCantrip::UpdateHandSpan()
 			}
 		}
 
-		// Composed rather than assigned, so AttachRotation reads as an aim adjustment
-		// relative to wherever the caster is pointed.
-		SustainedComponent->SetWorldRotation(Aim + AttachRotation);
+		// Quaternion product, NOT rotator addition.
+		//
+		// Adding two FRotators adds their components, which is not what composing two
+		// rotations means. FRotator(P, Y, 0) is "yaw by Y, then pitch by P about the
+		// axis that yaw produced" -- so folding a yaw trim into Y changes which axis
+		// the pitch is then applied about. A -90 trim stays correct while the aim is
+		// level and swings wildly the moment lateral aim and pitch combine, which is
+		// exactly the shape of the bug this replaces.
+		//
+		// Multiplying applies AttachRotation in the AIM's frame, so a yaw trim turns
+		// the effect about its own up axis whatever direction the caster is pointing.
+		SustainedComponent->SetWorldRotation(Aim.Quaternion() * AttachRotation.Quaternion());
 	}
 
 	if (SecondaryAttachSocket.IsNone())
