@@ -9,6 +9,21 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogCantripBurn, Log, All);
 
+// Console rather than only a Blueprint checkbox: this is the kind of thing you want on
+// for one cast and off again, and reaching for it should not mean stopping play,
+// recompiling a Blueprint and starting over.
+static TAutoConsoleVariable<int32> CVarBurnVerbose(
+	TEXT("Changeling.Burn.Verbose"),
+	0,
+	TEXT("Log a once-a-second summary of cantrip burn batches. 0 off, 1 on."),
+	ECVF_Default);
+
+static TAutoConsoleVariable<int32> CVarBurnDrawTraces(
+	TEXT("Changeling.Burn.DrawTraces"),
+	0,
+	TEXT("Draw the burn traces from the flame origin to each particle. 0 off, 1 on."),
+	ECVF_Default);
+
 UCantripBurnComponent::UCantripBurnComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -18,23 +33,56 @@ void UCantripBurnComponent::ReceiveParticleData_Implementation(
 	const TArray<FBasicParticleData>& Data, UNiagaraSystem* /*NiagaraSystem*/,
 	const FVector& SimulationPositionOffset)
 {
-	if (!DecalClass || Data.Num() == 0)
+	if (!DecalClass)
+	{
+		// Once, not every frame -- but loudly, because it stops everything downstream
+		// and produces exactly the same symptom as a Niagara misconfiguration.
+		if (!bWarnedNoDecalClass)
+		{
+			bWarnedNoDecalClass = true;
+			UE_LOG(LogCantripBurn, Warning,
+				TEXT("No DecalClass set on %s -- no marks can ever appear."),
+				*GetNameSafe(GetOwner()));
+		}
+		return;
+	}
+
+	if (Data.Num() == 0)
 	{
 		return;
 	}
+
+	++Stats.Batches;
+	Stats.Received += Data.Num();
 
 	// Strongest first, then take only the top few. A batch is dozens of collisions
 	// within a few centimetres of each other, and the weak ones are the tail of a
 	// particle's life -- barely a singe, and each one still costs two traces. Sorting
 	// means the budget is spent on the hits that would have looked like something.
+	// Distance is rejected HERE rather than in HandleHit, and the ordering matters more
+	// than it looks. Intensity falls with age, so the strongest particles are the
+	// youngest -- which are the ones still at the caster's hand. Sorting first hands
+	// every trace slot to particles that the distance guard then throws away, and the
+	// budget is spent entirely on hits that were never eligible.
+	const float MinDistSq = FMath::Square(MinHitDistance);
+
 	TArray<const FBasicParticleData*> Sorted;
 	Sorted.Reserve(Data.Num());
 	for (const FBasicParticleData& Particle : Data)
 	{
-		if (Particle.Size >= MinHitIntensity)
+		if (Particle.Size < MinHitIntensity)
 		{
-			Sorted.Add(&Particle);
+			continue;
 		}
+
+		const FVector World = Particle.Position + SimulationPositionOffset;
+		if ((World - FireOrigin).SizeSquared() < MinDistSq)
+		{
+			++Stats.TooClose;
+			continue;
+		}
+
+		Sorted.Add(&Particle);
 	}
 
 	Sorted.Sort([](const FBasicParticleData& A, const FBasicParticleData& B)
@@ -42,10 +90,18 @@ void UCantripBurnComponent::ReceiveParticleData_Implementation(
 		return A.Size > B.Size;
 	});
 
+	Stats.Kept += Sorted.Num();
+
 	const int32 Count = FMath::Min(Sorted.Num(), FMath::Max(1, MaxHitsPerBatch));
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
 		FBasicParticleData Particle = *Sorted[Index];
+
+		if (Index == 0)
+		{
+			SampleRawPos = Particle.Position;
+			SampleOffset = SimulationPositionOffset;
+		}
 
 		// Simulations can run in local space with an offset applied afterwards; without
 		// this the marks land wherever the system's origin happens to be.
@@ -53,6 +109,54 @@ void UCantripBurnComponent::ReceiveParticleData_Implementation(
 
 		HandleHit(Particle);
 	}
+
+	FlushStats();
+}
+
+void UCantripBurnComponent::FlushStats()
+{
+	// Either source turns it on, so the checkbox stays useful for a build you always
+	// want instrumented and the console covers everything else.
+	if (!bVerboseLogging && CVarBurnVerbose.GetValueOnGameThread() == 0)
+	{
+		return;
+	}
+
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const float Now = World->GetTimeSeconds();
+	if (Now - LastStatsTime < 1.0f)
+	{
+		return;
+	}
+
+	LastStatsTime = Now;
+
+	// Read left to right: each number is the count surviving one more stage, so the
+	// first one that collapses to zero is where the pipeline is broken.
+	UE_LOG(LogCantripBurn, Log,
+		TEXT("BURN batches=%d received=%d kept=%d | tooclose=%d notrace=%d decalhit=%d ")
+		TEXT("surface=%d chancefail=%d spawned=%d | live=%d | nophysmat=%d unmapped=%d ")
+		TEXT("hitsurface=%d flammable=%d"),
+		Stats.Batches, Stats.Received, Stats.Kept, Stats.TooClose, Stats.NoTrace,
+		Stats.DecalHits, Stats.SurfaceHits, Stats.ChanceFail, Stats.Spawned,
+		LiveDecals.Num(), Stats.NoPhysMat, Stats.Unmapped,
+		static_cast<int32>(SampleSurface.GetValue()), bSampleFlammable ? 1 : 0);
+
+	// The geometry behind those counts. If raw and start are nowhere near each other
+	// the exported positions are not in the space this trace assumes; if len is tiny
+	// the trace is degenerate and would miss whatever the coordinates were.
+	UE_LOG(LogCantripBurn, Log,
+		TEXT("  raw=%s off=%s start=%s end=%s len=%.0f"),
+		*SampleRawPos.ToCompactString(), *SampleOffset.ToCompactString(),
+		*SampleStart.ToCompactString(), *SampleEnd.ToCompactString(),
+		(SampleEnd - SampleStart).Size());
+
+	Stats = FBurnStats();
 }
 
 void UCantripBurnComponent::HandleHit(const FBasicParticleData& Particle)
@@ -66,16 +170,31 @@ void UCantripBurnComponent::HandleHit(const FBasicParticleData& Particle)
 	const FVector Start = FireOrigin;
 	const FVector Collision = Particle.Position;
 
+	// Anything this close collided with the caster, not with the world.
+	if ((Collision - Start).SizeSquared() < FMath::Square(MinHitDistance))
+	{
+		++Stats.TooClose;
+		return;
+	}
+
 	// Run the trace on PAST where the particle stopped. A particle has width and
 	// reports colliding from its centre, so it stops short of the surface by its own
 	// radius -- a trace ending there ends in mid-air and finds nothing at all.
 	const FVector End = Collision + (Collision - Start) * (TraceOvershoot - 1.0f);
 
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(CantripBurn), /*bTraceComplex*/ true,
+	SampleStart = Start;
+	SampleEnd = End;
+
+	// SIMPLE collision, not complex. A complex trace only hits per-poly data, which most
+	// meshes do not carry -- so it misses every surface in the level while the character
+	// walks around on the very same geometry, because movement uses simple collision.
+	// Simple is also what Niagara collided against to produce these particles, so this
+	// keeps the trace asking about the same world the particle already hit.
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(CantripBurn), /*bTraceComplex*/ false,
 		GetOwner());
 	Params.bReturnPhysicalMaterial = true;
 
-	if (bDrawDebugTraces)
+	if (bDrawDebugTraces || CVarBurnDrawTraces.GetValueOnGameThread() != 0)
 	{
 		DrawDebugLine(World, Start, End, FColor::Orange, false, 2.0f);
 	}
@@ -88,6 +207,7 @@ void UCantripBurnComponent::HandleHit(const FBasicParticleData& Particle)
 	{
 		if (AFireDecalActor* Existing = Cast<AFireDecalActor>(DecalHit.GetActor()))
 		{
+			++Stats.DecalHits;
 			Existing->ApplyFireHit(Particle.Size);
 			return;
 		}
@@ -99,6 +219,18 @@ void UCantripBurnComponent::HandleHit(const FBasicParticleData& Particle)
 	FHitResult SurfaceHit;
 	if (!World->LineTraceSingleByChannel(SurfaceHit, Start, End, SurfaceTraceChannel, Params))
 	{
+		++Stats.NoTrace;
+		return;
+	}
+
+	++Stats.SurfaceHits;
+
+	// Checked before the chance roll, because deepening an existing mark is not a new
+	// mark and should not be gated by whether the surface takes one.
+	if (AFireDecalActor* Nearby = FindNearbyDecal(SurfaceHit.ImpactPoint))
+	{
+		++Stats.DecalHits;
+		Nearby->ApplyFireHit(Particle.Size);
 		return;
 	}
 
@@ -107,29 +239,50 @@ void UCantripBurnComponent::HandleHit(const FBasicParticleData& Particle)
 	// Zero is how water and glass opt out without needing a special case anywhere.
 	if (Surface.MarkChance <= 0.0f)
 	{
+		++Stats.ChanceFail;
 		return;
 	}
 
 	if (FMath::FRand() > Surface.MarkChance)
 	{
+		++Stats.ChanceFail;
 		return;
 	}
 
 	if (AFireDecalActor* Decal = SpawnDecal(SurfaceHit, Surface.bFlammable))
 	{
+		++Stats.Spawned;
 		Decal->ApplyFireHit(Particle.Size);
 	}
 }
 
-const FCantripBurnSurface& UCantripBurnComponent::SurfaceFor(const FHitResult& Hit) const
+const FCantripBurnSurface& UCantripBurnComponent::SurfaceFor(const FHitResult& Hit)
 {
 	if (const UPhysicalMaterial* Physical = Hit.PhysMaterial.Get())
 	{
+		SampleSurface = Physical->SurfaceType;
+
 		if (const FCantripBurnSurface* Found = Surfaces.Find(Physical->SurfaceType))
 		{
+			bSampleFlammable = Found->bFlammable;
 			return *Found;
 		}
+
+		// Painted, but with a surface nobody has told the burn component about. Worth
+		// separating from having no physical material at all: one is a missing map
+		// entry, the other is unpainted geometry, and they are fixed in different
+		// places.
+		++Stats.Unmapped;
 	}
+	else
+	{
+		// The usual reason nothing ever catches fire. A landscape whose layers carry no
+		// physical material reports none, every hit falls through to DefaultSurface,
+		// and DefaultSurface is not flammable -- so grass burns exactly like stone.
+		++Stats.NoPhysMat;
+	}
+
+	bSampleFlammable = DefaultSurface.bFlammable;
 
 	// Unpainted geometry is most of a level early on, and silently refusing to mark it
 	// looks like the ability is broken rather than like the surface is unusual.
@@ -144,6 +297,22 @@ AFireDecalActor* UCantripBurnComponent::SpawnDecal(const FHitResult& Hit, bool b
 		return nullptr;
 	}
 
+	// Spun at random about the surface normal.
+	//
+	// The projection direction is fixed by the normal, but the roll around it is free --
+	// and leaving it deterministic stamps every mark on flat ground at the same
+	// orientation. Overlap a dozen of those and the eye reads one texture repeated
+	// rather than a burnt patch. Spinning each one costs nothing and is most of what
+	// makes a cluster look like fire damage.
+	//
+	// Built up here because the recycle path below needs it too -- a reused mark landing
+	// at its old orientation is the same repetition by another route.
+	const FQuat Spin(Hit.ImpactNormal.GetSafeNormal(),
+		FMath::FRandRange(0.0f, 2.0f * PI));
+
+	const FRotator Rotation =
+		(Spin * FRotationMatrix::MakeFromZ(Hit.ImpactNormal).ToQuat()).Rotator();
+
 	// Prune anything destroyed elsewhere -- a streamed-out level, a demolished wall --
 	// before deciding whether the budget is actually full.
 	LiveDecals.RemoveAll([](const TObjectPtr<AFireDecalActor>& Decal)
@@ -156,15 +325,23 @@ AFireDecalActor* UCantripBurnComponent::SpawnDecal(const FHitResult& Hit, bool b
 		if (AFireDecalActor* Recycled = RecycleColdestDecal())
 		{
 			Recycled->SetActorLocation(Hit.ImpactPoint);
-			Recycled->SetActorRotation(FRotationMatrix::MakeFromX(-Hit.ImpactNormal).Rotator());
+			Recycled->SetActorRotation(Rotation);
+
+			// Cleared, or the mark arrives at the opacity ceiling it earned somewhere
+			// else and appears fully burnt the instant it is placed.
+			Recycled->ReuseForSurface(bFlammable);
 			return Recycled;
 		}
 	}
 
-	// Decals project along -X, so the actor faces INTO the surface. Built from the
-	// normal rather than assigned, or a mark on a wall lies flat as though the wall
-	// were a floor.
-	const FRotator Rotation = FRotationMatrix::MakeFromX(-Hit.ImpactNormal).Rotator();
+	// Rotation is built from the normal as the actor's UP, not its forward.
+	//
+	// ADecalActor already pitches its decal component -90 in the constructor, so an
+	// upright actor projects straight down and needs no help. Pointing the actor's
+	// forward into the surface as well stacks a second -90 on top, and the projection
+	// ends up running PARALLEL to the surface -- which smears the texture across it in
+	// stripes inside a hard-edged box, and looks for all the world like a broken
+	// material rather than a rotation that was applied twice.
 
 	FActorSpawnParameters Spawn;
 	Spawn.SpawnCollisionHandlingOverride =
@@ -192,6 +369,38 @@ AFireDecalActor* UCantripBurnComponent::SpawnDecal(const FHitResult& Hit, bool b
 
 	LiveDecals.Add(Decal);
 	return Decal;
+}
+
+AFireDecalActor* UCantripBurnComponent::FindNearbyDecal(const FVector& Point) const
+{
+	if (MinDecalSpacing <= 0.0f)
+	{
+		return nullptr;
+	}
+
+	const float LimitSq = FMath::Square(MinDecalSpacing);
+
+	AFireDecalActor* Closest = nullptr;
+	float BestSq = LimitSq;
+
+	// Nearest rather than first found, so a hit between two marks deepens the one it is
+	// actually inside instead of whichever happens to sit earlier in the array.
+	for (const TObjectPtr<AFireDecalActor>& Decal : LiveDecals)
+	{
+		if (!IsValid(Decal))
+		{
+			continue;
+		}
+
+		const float DistSq = FVector::DistSquared(Decal->GetActorLocation(), Point);
+		if (DistSq < BestSq)
+		{
+			BestSq = DistSq;
+			Closest = Decal;
+		}
+	}
+
+	return Closest;
 }
 
 AFireDecalActor* UCantripBurnComponent::RecycleColdestDecal()

@@ -23,6 +23,17 @@
 #include "CantripTypes.h"
 #include "ChangelingAnimInstance.generated.h"
 
+/** A channel of the solved aim rotation, or nothing at all. */
+UENUM(BlueprintType)
+enum class ECantripAimChannel : uint8
+{
+	/** Contributes nothing. Use for a bone axis that should stay still. */
+	None,
+	Pitch,
+	Yaw,
+	Roll
+};
+
 class ACHANGELINGCharacter;
 class UAbilitySystemComponent;
 class UCharacterMovementComponent;
@@ -251,8 +262,26 @@ public:
 	 *
 	 * Leave off for Component Space, on for Bone Space.
 	 */
+	/**
+	 * Which channel of the AIM drives each channel of the BONE.
+	 *
+	 * Three dropdowns rather than a row of swap booleans, because the mapping that is
+	 * actually needed is often a three-way rotation of the channels and no combination
+	 * of pairwise swaps can express one. The aim is solved in the actor's frame while
+	 * the Transform (Modify) Bone applies it in the mesh's, and a character mesh is
+	 * yawed -90 from its actor by default -- so which aim channel ends up producing a
+	 * nod rather than a lean is a property of the rig, not something to reason out.
+	 *
+	 * Set them by watching: move one mouse axis, see which way the character moves.
+	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming|Axes")
-	bool bSwapYawAndRoll = false;
+	ECantripAimChannel BonePitchFrom = ECantripAimChannel::Pitch;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming|Axes")
+	ECantripAimChannel BoneYawFrom = ECantripAimChannel::Yaw;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming|Axes")
+	ECantripAimChannel BoneRollFrom = ECantripAimChannel::Roll;
 
 	/**
 	 * Only aim while a cantrip is being cast.

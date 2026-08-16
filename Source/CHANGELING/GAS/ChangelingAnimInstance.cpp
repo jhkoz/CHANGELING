@@ -101,16 +101,22 @@ FRotator UChangelingAnimInstance::GetAimWorldRotation() const
 
 FRotator UChangelingAnimInstance::MakeBoneAim(const FRotator& Aim, float Share) const
 {
-	float Pitch = Aim.Pitch * Share * AimPitchSign;
-	float Yaw   = Aim.Yaw   * Share * AimYawSign;
-	float Roll  = Aim.Roll  * Share * AimRollSign;
-
-	// A bone whose long axis runs up the spine turns about that axis to twist, and that
-	// axis is named roll. Asking such a bone for yaw folds it sideways instead.
-	if (bSwapYawAndRoll)
+	// Each bone channel picks its source, so any mapping is expressible -- including the
+	// three-way rotations that a pair of swap booleans cannot reach.
+	auto Channel = [&Aim](ECantripAimChannel Source) -> float
 	{
-		Swap(Yaw, Roll);
-	}
+		switch (Source)
+		{
+		case ECantripAimChannel::Pitch: return Aim.Pitch;
+		case ECantripAimChannel::Yaw:   return Aim.Yaw;
+		case ECantripAimChannel::Roll:  return Aim.Roll;
+		default:                        return 0.0f;
+		}
+	};
+
+	float Pitch = Channel(BonePitchFrom) * Share * AimPitchSign;
+	float Yaw   = Channel(BoneYawFrom)   * Share * AimYawSign;
+	float Roll  = Channel(BoneRollFrom)  * Share * AimRollSign;
 
 	// Clamped per bone rather than on the total, because the ceiling is a property of
 	// the joint. However far the camera swings, no single vertebra is asked for more

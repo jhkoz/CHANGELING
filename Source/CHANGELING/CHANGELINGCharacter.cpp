@@ -338,12 +338,26 @@ void ACHANGELINGCharacter::SetAiming(bool bNewAiming)
 
 	bAiming = bNewAiming;
 
-	// Deliberately does NOT turn the actor to face the camera. The whole point of
-	// aiming through the spine is that the body stays where it is and only twists --
-	// snapping the capsule's yaw as well would make the twist invisible and the
-	// character spin on the spot every time the camera moved.
+	// Only Locked hands the yaw straight to the controller. Lazy turns the body itself
+	// in UpdateAimFacing, which controller yaw would override every frame.
+	if (AimFacingMode == EAimFacingMode::Locked)
+	{
+		if (bAiming)
+		{
+			// Remembered rather than assumed, for the same reason as the movement flag
+			// below: restoring must not quietly change a setting made elsewhere.
+			bYawWasControllerDriven = bUseControllerRotationYaw;
+			bUseControllerRotationYaw = true;
+		}
+		else
+		{
+			bUseControllerRotationYaw = bYawWasControllerDriven;
+		}
+	}
 
-	if (bFreezeFacingWhileAiming)
+	// Orientation-to-movement has to go whatever the mode: it fights a frozen facing,
+	// it fights controller yaw, and it fights a lazy turn just as hard.
+	if (bFreezeFacingWhileAiming || AimFacingMode != EAimFacingMode::TwistOnly)
 	{
 		if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 		{
@@ -370,7 +384,11 @@ void ACHANGELINGCharacter::SetAiming(bool bNewAiming)
 void ACHANGELINGCharacter::ClampAimCamera()
 {
 	AController* OwningController = GetController();
-	if (!bAiming || CameraYawLimitWhileAiming <= 0.0f || !OwningController)
+
+	// Nothing to fence unless the body is genuinely staying put. In the other modes the
+	// clamp would push the control rotation back at a body already turning to meet it.
+	if (!bAiming || AimFacingMode != EAimFacingMode::TwistOnly
+		|| CameraYawLimitWhileAiming <= 0.0f || !OwningController)
 	{
 		return;
 	}
@@ -400,7 +418,39 @@ void ACHANGELINGCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	UpdateAimFacing(DeltaSeconds);
 	UpdateHandProbe(DeltaSeconds);
+}
+
+void ACHANGELINGCharacter::UpdateAimFacing(float DeltaSeconds)
+{
+	const AController* OwningController = GetController();
+	if (!bAiming || AimFacingMode != EAimFacingMode::Lazy || !OwningController)
+	{
+		return;
+	}
+
+	const float BodyYaw = GetActorRotation().Yaw;
+	const float AimYaw = OwningController->GetControlRotation().Yaw;
+
+	// Shortest signed angle, for the same reason the fence uses it: a plain subtraction
+	// wraps at 180 and would send the body the long way round when facing south.
+	const float Offset = FMath::FindDeltaAngleDegrees(BodyYaw, AimYaw);
+
+	if (FMath::Abs(Offset) <= AimFacingDeadzone)
+	{
+		return;
+	}
+
+	// Chase the EDGE of the deadzone, not the aim itself. Turning all the way to the
+	// aim would leave the spine straight and the body drifting on every small camera
+	// movement; stopping at the edge means the twist is still doing its share, and the
+	// body settles as soon as the aim stops running away.
+	const float Target = AimYaw - FMath::Sign(Offset) * AimFacingDeadzone;
+
+	FRotator Facing = GetActorRotation();
+	Facing.Yaw = FMath::FixedTurn(Facing.Yaw, Target, AimFacingTurnSpeed * DeltaSeconds);
+	SetActorRotation(Facing);
 }
 
 void ACHANGELINGCharacter::SetCantripMovementLocked(bool bLocked)

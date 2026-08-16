@@ -108,6 +108,22 @@ protected:
 	FVector AttachOffset = FVector(0.0f, 0.0f, -20.0f);
 
 	/**
+	 * Uniform scale for the whole effect.
+	 *
+	 * Here rather than in the emitters because resizing a system otherwise means
+	 * editing sprite size, spawn radius and velocity in step across every emitter --
+	 * three numbers each, and getting one wrong changes the effect's shape rather than
+	 * its size. A component scale moves all of them together and leaves the authored
+	 * proportions intact.
+	 *
+	 * Meant for FITTING an effect to a hand, not for rescuing one built at the wrong
+	 * size: scaling far from 1 will also scale how fast particles appear to travel.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained",
+		meta = (ClampMin = "0.01"))
+	float EffectScale = 1.0f;
+
+	/**
 	 * Rotation relative to the socket.
 	 *
 	 * Matters for anything that projects rather than just sitting there. A socket's

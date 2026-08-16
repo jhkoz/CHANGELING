@@ -259,6 +259,14 @@ void UGA_SustainedCantrip::SpawnSustainedEffect()
 		EAttachLocation::SnapToTargetIncludingScale, /*bAutoDestroy*/ false,
 		/*bAutoActivate*/ true);
 
+	// After spawning, because SnapToTargetIncludingScale takes the socket's scale and
+	// would discard anything set beforehand. Nothing else touches scale afterwards --
+	// UpdateHandSpan only ever sets relative LOCATION -- so this survives.
+	if (SustainedComponent && !FMath::IsNearlyEqual(EffectScale, 1.0f))
+	{
+		SustainedComponent->SetRelativeScale3D(FVector(EffectScale));
+	}
+
 	// Full strength on spawn. The fade IN is the emitter's own curve on age -- it
 	// knows when it started; only the ending needs telling.
 	if (SustainedComponent && !FadeParameter.IsNone())
@@ -277,6 +285,18 @@ void UGA_SustainedCantrip::SpawnSustainedEffect()
 			Character->FindComponentByClass<UCantripBurnComponent>())
 		{
 			SustainedComponent->SetVariableObject(BurnHandlerParameter, Burn);
+
+			UE_LOG(LogSustainedCantrip, Log,
+				TEXT("BURN: handler '%s' set on %s."),
+				*BurnHandlerParameter.ToString(), *GetNameSafe(SustainedEffect));
+		}
+		else
+		{
+			// Silent otherwise, and the symptom is simply no marks -- which looks like a
+			// Niagara problem rather than a missing component on the character.
+			UE_LOG(LogSustainedCantrip, Warning,
+				TEXT("BURN: no UCantripBurnComponent on %s -- no marks will appear."),
+				*GetNameSafe(Character));
 		}
 	}
 

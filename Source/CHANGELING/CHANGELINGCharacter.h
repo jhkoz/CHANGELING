@@ -22,6 +22,24 @@ struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
+/** How the body answers the aim while a sustained cantrip is being pointed. */
+UENUM(BlueprintType)
+enum class EAimFacingMode : uint8
+{
+	/** Body holds still; the spine carries the whole offset, fenced by the yaw limit. */
+	TwistOnly UMETA(DisplayName = "Twist Only"),
+
+	/**
+	 * Spine carries small offsets; the body swings round once the aim leaves a
+	 * deadzone. What a person actually does -- glance without moving, turn when the
+	 * glance stops being comfortable.
+	 */
+	Lazy UMETA(DisplayName = "Lazy Turn"),
+
+	/** Body takes the camera's yaw directly. No twist, no lag. */
+	Locked UMETA(DisplayName = "Locked To Aim")
+};
+
 /**
  *  A simple player-controllable third person character
  *  Implements a controllable orbiting camera
@@ -201,12 +219,54 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming")
 	bool bFreezeFacingWhileAiming = true;
 
+	/**
+	 * What the body does about the aim. See EAimFacingMode.
+	 *
+	 * Twist Only: the feet stay planted and the spine carries the offset, which is what
+	 * a person bracing a sustained effect actually does -- they turn from the waist
+	 * rather than shuffling their stance round. The flame still follows the aim because
+	 * its direction comes from the anim instance's aim rotation, which includes that
+	 * twist; it is the legs, not the effect, that stay put.
+	 *
+	 * This is the mode the yaw fence exists for: with the body fixed, the camera has to
+	 * be held inside the arc the spine can actually reach.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming")
+	EAimFacingMode AimFacingMode = EAimFacingMode::TwistOnly;
+
+	/**
+	 * How far the aim may stray from the body's facing before the body follows, in
+	 * degrees. Lazy mode only.
+	 *
+	 * Keep it inside what the spine can actually reach -- past roughly 60 the twist
+	 * stops looking like a person looking sideways and starts looking dislocated.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
+		meta = (ClampMin = "0.0", ClampMax = "90.0"))
+	float AimFacingDeadzone = 45.0f;
+
+	/**
+	 * Degrees per second the body turns while catching up. Lazy mode only.
+	 *
+	 * Fast enough not to feel like wading, slow enough that the turn is visible --
+	 * instant catch-up is just Locked mode with extra steps.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aiming",
+		meta = (ClampMin = "1.0"))
+	float AimFacingTurnSpeed = 360.0f;
+
 private:
 	/** Keeps the camera inside the arc the body can actually follow. */
 	void ClampAimCamera();
 
+	/** Swings the body round once the aim has left the deadzone. Lazy mode only. */
+	void UpdateAimFacing(float DeltaSeconds);
+
 	/** What bOrientRotationToMovement was before aiming took it away. */
 	bool bFacingWasOrientedToMovement = true;
+
+	/** What bUseControllerRotationYaw was before the aim lock took it. */
+	bool bYawWasControllerDriven = false;
 
 public:
 	/**

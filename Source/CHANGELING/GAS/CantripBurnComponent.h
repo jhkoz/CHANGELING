@@ -137,20 +137,104 @@ protected:
 		meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float MinHitIntensity = 0.05f;
 
+	/**
+	 * Ignore collisions closer than this to the flame's origin.
+	 *
+	 * The flame is emitted from a hand, and a hand lives inside the caster's own
+	 * capsule -- so particles collide with the CASTER on their first frame and report
+	 * it, drowning out the real impacts further out. Those hits are also untraceable
+	 * by definition: the trace ignores the owner, so it finds nothing and every one
+	 * looks like a miss.
+	 *
+	 * Roughly capsule radius plus the reach of the arm.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Burn",
+		meta = (ClampMin = "0.0"))
+	float MinHitDistance = 90.0f;
+
+	/**
+	 * How close a new mark may land to an existing one before it deepens that one
+	 * instead of laying a fresh decal on top.
+	 *
+	 * A backstop for the trace, not a replacement. The decal-channel trace is precise
+	 * but it can miss -- a grazing angle, a mark whose bounds the ray clips past -- and
+	 * every miss is a decal stacked on a decal, which is where the piled-up look comes
+	 * from. A plain distance test cannot miss.
+	 *
+	 * Keep it near the decal's own radius: much smaller and marks still overlap, much
+	 * larger and a swept flame paints one mark instead of a trail.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Burn",
+		meta = (ClampMin = "0.0"))
+	float MinDecalSpacing = 48.0f;
+
 	/** Random scale spread, so marks are not all identical circles. */
 	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Cantrip|Burn")
 	FVector2D DecalScaleRange = FVector2D(0.8f, 1.25f);
 
-	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Cantrip|Burn")
+	UPROPERTY(EditDefaultsOnly, Category = "Cantrip|Burn|Debug")
 	bool bDrawDebugTraces = false;
+
+	/**
+	 * Log a once-a-second summary of what the batches are doing.
+	 *
+	 * Per-second rather than per-hit: this path runs every frame with a batch each
+	 * time, and a line per particle buries the log so thoroughly that the one thing
+	 * you were looking for scrolls past.
+	 */
+	// Defaults ON while the burn pipeline is being brought up, because the console
+	// variable resets on every editor restart and a restart is exactly what a rebuild
+	// causes -- so the one run you wanted instrumented is the one that never is.
+	// Turn this back off once marks are landing reliably.
+	UPROPERTY(EditDefaultsOnly, Category = "Cantrip|Burn|Debug")
+	bool bVerboseLogging = true;
 
 private:
 	void HandleHit(const FBasicParticleData& Particle);
-	const FCantripBurnSurface& SurfaceFor(const FHitResult& Hit) const;
+	const FCantripBurnSurface& SurfaceFor(const FHitResult& Hit);
 	AFireDecalActor* SpawnDecal(const FHitResult& Hit, bool bFlammable);
 	AFireDecalActor* RecycleColdestDecal();
+	AFireDecalActor* FindNearbyDecal(const FVector& Point) const;
+	void FlushStats();
 
 	UPROPERTY() TArray<TObjectPtr<AFireDecalActor>> LiveDecals;
 
 	FVector FireOrigin = FVector::ZeroVector;
+
+	/** Counters for the summary line. Each is a place the pipeline can stop. */
+	struct FBurnStats
+	{
+		int32 Batches = 0;
+		int32 Received = 0;   // particles Niagara sent
+		int32 Kept = 0;       // survived MinHitIntensity
+		int32 DecalHits = 0;  // found an existing mark to deepen
+		int32 SurfaceHits = 0;// trace reached geometry
+		int32 TooClose = 0;   // collided with the caster's own body
+		int32 NoTrace = 0;    // trace hit nothing at all
+		int32 ChanceFail = 0; // surface refused this roll
+		int32 Spawned = 0;
+		int32 NoPhysMat = 0;  // geometry with no physical material at all
+		int32 Unmapped = 0;   // had one, but it is not in the Surfaces map
+	};
+
+	/** Last surface actually resolved, so the summary can name what is being hit. */
+	TEnumAsByte<EPhysicalSurface> SampleSurface = SurfaceType_Default;
+	bool bSampleFlammable = false;
+
+	FBurnStats Stats;
+	float LastStatsTime = 0.0f;
+	bool bWarnedNoDecalClass = false;
+
+	/**
+	 * One sampled trace per summary line.
+	 *
+	 * Counts cannot tell "the traces were fine and there was nothing to hit" apart from
+	 * "the coordinates are nonsense" -- both read as notrace. The raw exported position
+	 * is kept separate from the offset because a simulation reporting local positions
+	 * looks perfectly reasonable once the two have been added together.
+	 */
+	FVector SampleRawPos = FVector::ZeroVector;
+	FVector SampleOffset = FVector::ZeroVector;
+	FVector SampleStart = FVector::ZeroVector;
+	FVector SampleEnd = FVector::ZeroVector;
 };

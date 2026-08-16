@@ -44,6 +44,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Fire Decal")
 	void ConfigureForSurface(bool bInFlammable);
 
+	/**
+	 * Point a recycled mark at a fresh surface, clearing everything it accumulated.
+	 *
+	 * Without the clear, a reused decal arrives already at its opacity ceiling and
+	 * fully lit -- so recycling reads as marks appearing out of nowhere at full
+	 * strength. The material is rebuilt only when flammability changed, or a mark
+	 * recycled from grass onto stone would keep the ember material and glow on rock.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Fire Decal")
+	void ReuseForSurface(bool bInFlammable);
+
 	UFUNCTION(BlueprintPure, Category = "Fire Decal")
 	bool IsFlammable() const { return bFlammable; }
 
@@ -81,6 +92,9 @@ protected:
 	// ── Material parameters ─────────────────────────────────────────────────
 
 	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Fire Decal")
+	// Must match the material's parameter exactly. SetScalarParameterValue fails
+	// silently on a name that does not exist, so a mismatch does not error -- the decal
+	// simply sits at its default opacity forever and looks like a material problem.
 	FName OpacityParameter = TEXT("OpacityIntensity");
 
 	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Fire Decal")
@@ -119,6 +133,18 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Fire Decal|Embers",
 		meta = (ClampMin = "0.0"))
 	float EmberPerHit = 0.02f;
+
+	/**
+	 * Seconds a mark stays at full glow after the last hit, before it starts cooling.
+	 *
+	 * Without this the decay begins the instant the flame moves on, and because the
+	 * decay is proportional it takes its biggest bite while the ember is brightest --
+	 * so the glow collapses off its peak and then lingers dimly, which is backwards.
+	 * Holding first gives the shape fire actually has: flares up, sits hot, fades out.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Fire Decal|Embers",
+		meta = (ClampMin = "0.0"))
+	float EmberHoldSeconds = 3.0f;
 
 	/** Multiplier applied to the glow on every fade step. Just under 1, so embers die
 	 *  slowly enough to watch. */
