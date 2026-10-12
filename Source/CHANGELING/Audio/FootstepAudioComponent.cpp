@@ -70,10 +70,70 @@ void UFootstepAudioComponent::HandleLanded(const FHitResult& /*Hit*/)
 		? FMath::Abs(OwningCharacter->GetVelocity().Z)
 		: 0.0f;
 
+	if (bVerboseLogging)
+	{
+		// Both numbers, because a splash that looks wrong is either a bad impact reading
+		// or a badly tuned height -- and they are not distinguishable from the result.
+		UE_LOG(LogFootstep, Log,
+			TEXT("%s: landed at %.0f cm/s -- worth a %.0f cm fall (full splash at %.0f)"),
+			*GetNameSafe(OwningCharacter), LandingImpactSpeed,
+			EquivalentFallHeight(), FullSplashFallHeight);
+	}
+
 	PlayJumpLand();
 }
 
+float UFootstepAudioComponent::EquivalentFallHeight() const
+{
+	if (LandingImpactSpeed <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	// The character's own gravity, not the world's: a Z scale of 2 doubles the speed a
+	// given drop produces, and reading the world would then over-report every fall.
+	float Gravity = 980.0f;
+	if (const UCharacterMovementComponent* Movement =
+			OwningCharacter ? OwningCharacter->GetCharacterMovement() : nullptr)
+	{
+		Gravity = FMath::Abs(Movement->GetGravityZ());
+	}
+
+	// Zero or inverted gravity would divide by nothing. Falling is meaningless there, so
+	// report no fall rather than an infinite one.
+	if (Gravity <= KINDA_SMALL_NUMBER)
+	{
+		return 0.0f;
+	}
+
+	return (LandingImpactSpeed * LandingImpactSpeed) / (2.0f * Gravity);
+}
+
 // ── Entry points ─────────────────────────────────────────────────────────────
+
+bool UFootstepAudioComponent::IsWithinAudibleRange() const
+{
+	// Zero means no cull, which is the player's case.
+	if (MaxAudibleDistance <= 0.0f || !OwningCharacter)
+	{
+		return true;
+	}
+
+	// Measured against the player pawn rather than the audio listener. They are the same
+	// thing in this game, and asking the audio device for its listener returns nothing on
+	// a dedicated server or before the first listener tick -- which would silently cull
+	// every NPC step rather than none.
+	const APawn* Listener = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!Listener)
+	{
+		return true;
+	}
+
+	const float DistanceSquared = FVector::DistSquared(
+		OwningCharacter->GetActorLocation(), Listener->GetActorLocation());
+
+	return DistanceSquared <= FMath::Square(MaxAudibleDistance);
+}
 
 void UFootstepAudioComponent::PlayFootstep(EFootSide Foot)
 {
@@ -93,6 +153,13 @@ void UFootstepAudioComponent::PlayJumpLand()
 void UFootstepAudioComponent::PlayStepAtSocket(FName Socket, EFootstepGait Gait)
 {
 	if (!OwningCharacter)
+	{
+		return;
+	}
+
+	// Distance cull before anything else, so a far-off NPC costs nothing at all -- not the
+	// cue, and not the two ground traces underneath it.
+	if (!IsWithinAudibleRange())
 	{
 		return;
 	}
@@ -202,9 +269,16 @@ void UFootstepAudioComponent::SpawnStepEffect(const FFootstepCueRow& Row,
 	float SpeedScale;
 	if (Gait == EFootstepGait::Jump)
 	{
+		// How far the fall was worth, from how hard it landed: h = v² / 2g.
+		//
+		// Derived rather than counted during the descent, which keeps this component
+		// event-driven -- and it is the truer measure. Drifting down from a rooftop under
+		// Wind Runner arrives slowly and should barely mark the water; an altitude counter
+		// would give it the same splash as a fall.
 		SpeedScale = FMath::GetMappedRangeValueClamped(
-			FVector2f(0.0f, FMath::Max(LandFullImpactSpeed, 1.0f)), FVector2f(0.5f, 1.5f),
-			LandingImpactSpeed);
+			FVector2f(0.0f, FMath::Max(FullSplashFallHeight, 1.0f)),
+			FVector2f(MinLandingSplash, MaxLandingSplash),
+			EquivalentFallHeight());
 	}
 	else
 	{

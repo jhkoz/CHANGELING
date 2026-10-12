@@ -9,6 +9,8 @@ Landscape mapping (from the live landscape):
 """
 import numpy as np
 from PIL import Image
+import os
+T = os.path.dirname(os.path.abspath(__file__))
 
 N        = 505          # heightmap resolution (verts)
 Z_CENTER = 1000.0       # world Z at the hill top (before rolling)
@@ -17,8 +19,8 @@ ROLL1_AMP, ROLL1_RES = 180.0, 12   # gentle large rolls
 ROLL2_AMP, ROLL2_RES =  70.0, 26   # subtle secondary undulation
 SEED     = 42
 ZSCALE   = 24.0
-OUT      = r"G:\personal_projects\CHANGELING\Tools\heightmap_island_hill.png"
-PREVIEW  = r"G:\personal_projects\CHANGELING\Tools\heightmap_island_hill_preview.png"
+OUT      = os.path.join(T, "heightmap_island_hill.png")
+PREVIEW  = os.path.join(T, "heightmap_island_hill_preview.png")
 
 def val16(world_z):
     return 32768.0 + world_z / (ZSCALE / 128.0)   # /0.1875

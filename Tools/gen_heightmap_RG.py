@@ -2,7 +2,7 @@
 byte) for landscape_import_heightmap_from_render_target(rt, InImportHeightFromRGChannel=True)."""
 import os, numpy as np
 from PIL import Image
-T=r"G:\personal_projects\CHANGELING\Tools"
+T = os.path.dirname(os.path.abspath(__file__))
 V=np.asarray(Image.open(os.path.join(T,"heightmap_denoised_505.png"))).astype(np.uint16)
 print("heightmap %s  V %d..%d"%(V.shape, V.min(), V.max()))
 rgba=np.zeros(V.shape+(4,),np.uint8)

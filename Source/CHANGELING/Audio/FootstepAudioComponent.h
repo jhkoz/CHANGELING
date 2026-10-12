@@ -116,6 +116,25 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Footstep|Tuning")
 	float VolumeMultiplier = 1.0f;
 
+	/**
+	 * Beyond this distance from the listener a step is not played at all; 0 disables the cull.
+	 *
+	 * Zero by default so the player, whose steps should always be heard, is unaffected.
+	 * NPCs set it -- a garden holding dozens of them should not be audible as a crowd from
+	 * the far side of the map.
+	 *
+	 * The whole step is skipped rather than just the cue, which also skips the ground trace.
+	 * That is the point as much as the silence is: a trace per foot per NPC per stride adds
+	 * up long before the audio does.
+	 *
+	 * Distinct from MaxEffectDistance, which culls only the Niagara effect and leaves the
+	 * sound playing. A step can reasonably be heard but not seen; this is the outer bound
+	 * on both, so it wants to be the larger of the two to mean anything.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Footstep|Tuning",
+		meta = (ClampMin = "0.0"))
+	float MaxAudibleDistance = 0.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Footstep|Water")
 	FWaterDepthThresholds WaterDepth;
 
@@ -129,15 +148,35 @@ public:
 	float MaxEffectDistance = 6000.0f;
 
 	/**
-	 * Downward speed (cm/s) at which a landing splash reaches full intensity.
+	 * Fall height (cm) at which a landing splash reaches full intensity. 500 = five metres.
 	 *
-	 * Landings are scaled by IMPACT speed, not ground speed. A drop straight down
-	 * has almost no horizontal velocity, so reusing the walking measure would make
-	 * the hardest landings throw the smallest splash — exactly backwards.
+	 * Landings are scaled by how far the fall was worth, not by ground speed. A drop
+	 * straight down has almost no horizontal velocity, so reusing the walking measure
+	 * would make the hardest landings throw the smallest splash — exactly backwards.
+	 *
+	 * The height is DERIVED from impact speed rather than counted during the fall:
+	 * h = v² / 2g. That keeps this component free of a tick, and it is the better
+	 * measure anyway — drifting down from a great height under Wind Runner should barely
+	 * disturb the water, and impact speed knows that where an altitude counter would not.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Footstep|VFX",
-		meta = (ClampMin = "1.0"))
-	float LandFullImpactSpeed = 900.0f;
+		meta = (ClampMin = "1.0", ForceUnits = "cm"))
+	float FullSplashFallHeight = 500.0f;
+
+	/** Splash intensity for a landing from no height at all — a step off a kerb. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Footstep|VFX",
+		meta = (ClampMin = "0.0"))
+	float MinLandingSplash = 0.4f;
+
+	/**
+	 * Splash intensity at FullSplashFallHeight and beyond.
+	 *
+	 * Deliberately well above the 1.5 a walking step tops out at: a body hitting water
+	 * from five metres should not look like a brisk wade.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Footstep|VFX",
+		meta = (ClampMin = "0.0"))
+	float MaxLandingSplash = 2.5f;
 
 	/**
 	 * Draw effects from the Niagara component pool rather than allocating one per
@@ -226,6 +265,12 @@ private:
 	                     float Depth) const;
 
 	bool IsWaterSurface(EPhysicalSurface Surface) const;
+
+	/** The drop this landing was worth, in cm, from its impact speed: h = v² / 2g. */
+	float EquivalentFallHeight() const;
+
+	/** Whether the listener is close enough for this step to be worth playing at all. */
+	bool IsWithinAudibleRange() const;
 
 	/** EPhysicalSurface → the name declared in DefaultEngine.ini. */
 	static FName SurfaceToRowName(EPhysicalSurface Surface);

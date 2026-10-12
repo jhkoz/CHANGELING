@@ -1,0 +1,110 @@
+[
+ {
+  "Name": "Autumn",
+  "DisplayName": "Autumn",
+  "Description": "Decay, dread and endings; the shadow that lengthens over a thing.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Chicanery",
+  "DisplayName": "Chicanery",
+  "Description": "Illusion and misdirection worked upon the mind of the beholder.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Chronos",
+  "DisplayName": "Chronos",
+  "Description": "The running of time — slowed, hurried, glimpsed backward.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Contract",
+  "DisplayName": "Contract",
+  "Description": "Oaths, bargains and the binding weight of a promise given.",
+  "Symbol": ""
+ },
+ {
+  "Name": "DragonsIre",
+  "DisplayName": "Dragon's Ire",
+  "Description": "Wrath made manifest; the body itself turned to a weapon.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Legerdemain",
+  "DisplayName": "Legerdemain",
+  "Description": "Sleight of hand at a distance — things moved, taken, unseen.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Metamorphosis",
+  "DisplayName": "Metamorphosis",
+  "Description": "The shape of a living thing rewritten, briefly or lastingly.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Naming",
+  "DisplayName": "Naming",
+  "Description": "True names and the words that command what they name.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Oneiromancy",
+  "DisplayName": "Oneiromancy",
+  "Description": "Dreams: entering them, shaping them, walking out through them.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Primal",
+  "DisplayName": "Primal",
+  "Description": "The raw stuff of the world — stone, storm, root and flame.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Pyretics",
+  "DisplayName": "Pyretics",
+  "Description": "Fire and faerie light, from a kindled spark to a pyre.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Skycraft",
+  "DisplayName": "Skycraft",
+  "Description": "The open air — wind, weather, lightning and flight.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Soothsay",
+  "DisplayName": "Soothsay",
+  "Description": "Fate read and nudged; omens, portents and the thread ahead.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Sovereign",
+  "DisplayName": "Sovereign",
+  "Description": "The right of rule, and the fae obedience that answers it.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Spring",
+  "DisplayName": "Spring",
+  "Description": "Renewal, desire and the green rush of things beginning.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Summer",
+  "DisplayName": "Summer",
+  "Description": "Vitality and plenty at their height; passion that will not cool.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Wayfare",
+  "DisplayName": "Wayfare",
+  "Description": "Motion — leaping, hastening, and doors opened between places.",
+  "Symbol": ""
+ },
+ {
+  "Name": "Winter",
+  "DisplayName": "Winter",
+  "Description": "Cold, stillness and the quiet that follows an ending.",
+  "Symbol": ""
+ }
+]

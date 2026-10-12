@@ -1,0 +1,17 @@
+{
+    "root": true,
+    "hlsl.virtualDirectoryMappings": {
+        "/Engine/": "D:/Program Files/Epic Games/UE_5.7/Engine/Shaders/",
+        "/Plugin/Water/": "D:/Program Files/Epic Games/UE_5.7/Engine/Plugins/Experimental/Water/Shaders/",
+        "/Project/": "./Shaders/"
+    },
+    "hlsl.additionalIncludeDirectories": [
+        "D:/Program Files/Epic Games/UE_5.7/Engine/Shaders",
+        "D:/Program Files/Epic Games/UE_5.7/Engine/Shaders/Shared",
+        "./Shaders"
+    ],
+    "hlsl.preprocessorDefinitions": {
+        "COMPILER_HLSL": 1,
+        "PIXELSHADER": 1
+    }
+}

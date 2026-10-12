@@ -17,10 +17,63 @@
 #include "Engine/DataTable.h"
 #include "GameplayTagContainer.h"
 #include "StorytellerRoll.h"
+#include "Styling/SlateColor.h"
 #include "CantripTypes.generated.h"
 
 class UAnimSequenceBase;
 class UGameplayEffect;
+class UTexture2D;
+
+/**
+ * How fast she has chosen to move.
+ *
+ * Three tiers rather than two, and the third is not merely "faster": Sprint is the only one
+ * that costs anything. That distinction is the design -- walking and jogging are free and
+ * can be held indefinitely, so the stamina bar only ever moves when the player has asked
+ * it to.
+ *
+ * Lives here rather than on the character because the animation layer needs it too, and
+ * both already include this header. Putting it on the character would mean dragging the
+ * whole character header into the AnimInstance for the sake of one enum.
+ */
+UENUM(BlueprintType)
+enum class EChangelingGait : uint8
+{
+	Walk   UMETA(DisplayName = "Walk"),
+	Jog    UMETA(DisplayName = "Jog"),
+	Sprint UMETA(DisplayName = "Sprint")
+};
+
+/**
+ * Where she is in the arc of a flight.
+ *
+ * Flight used to be a boolean -- weightless or not -- and a boolean cannot express a windup.
+ * The crouch before a launch and the recovery after a landing are both states in which she
+ * is neither flying nor simply standing: input is hers again but her feet are not yet under
+ * her, and an animation is mid-way through saying so.
+ *
+ * Here rather than on the character for the same reason the gait is: the AnimInstance needs
+ * it, only forward-declares the character, and an enum reached by accident through a unity
+ * build compiles until the day the unity grouping changes.
+ */
+UENUM(BlueprintType)
+enum class EChangelingFlightPhase : uint8
+{
+	/** Feet on the ground, nothing pending. */
+	Grounded,
+
+	/** Crouched and gathering. The cantrip has fired but she has not left the ground. */
+	Windup,
+
+	/** MOVE_Flying. */
+	Airborne,
+
+	/** Out of flight and falling, waiting for ground. */
+	Landing,
+
+	/** Down, and playing the impact. Briefly not hers to steer. */
+	Recovery
+};
 
 /** Chimerical costs nothing but exists only for the enchanted; Wyrd costs Glamour
  *  and is real in both worlds. Some cantrips let the caster choose. */
@@ -67,6 +120,194 @@ enum class ECantripElement : uint8
 	Water        UMETA(DisplayName = "Water (West / Autumn)"),
 	Earth        UMETA(DisplayName = "Earth (North / Winter)"),
 	Quintessence UMETA(DisplayName = "Quintessence (Centre)")
+};
+
+/**
+ * What a cantrip DOES, as opposed to how long it lasts.
+ *
+ * Orthogonal to ECantripKind: that decides the ability's shape and lifetime -- which C++
+ * class the Blueprint derives from -- while this decides what the player reaches for it
+ * FOR. A spellbook of ninety workings is unusable without it; sorted by Art alone, the
+ * question "what do I have that stops someone running" has no answer short of reading all
+ * ninety descriptions.
+ *
+ * Derived from C20 rather than borrowed from a class-based RPG, which is why Binding and
+ * Divination are here and a "tank/healer/dps" triad is not. Ten of the ninety return
+ * information and change nothing; four bind a promise the Dreaming itself enforces.
+ * Neither has anywhere to sit in the usual taxonomy.
+ */
+UENUM(BlueprintType)
+enum class ECantripRole : uint8
+{
+	/** Harms directly. The only role that reduces health by itself. */
+	Damage         UMETA(DisplayName = "Damage"),
+
+	/** Takes away the target's choices: held, frozen, compelled, terrified. */
+	Control        UMETA(DisplayName = "Control"),
+
+	/** Leaves the target able to act, but worse at it. */
+	Debuff         UMETA(DisplayName = "Debuff"),
+
+	/** Makes the caster or an ally better at something. */
+	Buff           UMETA(DisplayName = "Buff"),
+
+	/** Turns harm aside. Separate from Buff because it answers an attack rather than
+	 *  improving a capability -- and the player reaches for it at a different moment. */
+	Protection     UMETA(DisplayName = "Protection"),
+
+	/** Restores what was lost: health, life, purity. */
+	Healing        UMETA(DisplayName = "Healing"),
+
+	/** Moves a body through space that would otherwise stop it. */
+	Mobility       UMETA(DisplayName = "Mobility"),
+
+	/** Returns information and changes nothing. */
+	Divination     UMETA(DisplayName = "Divination"),
+
+	/** Lies to the senses. Not Control: it does not stop you, it misleads you. */
+	Illusion       UMETA(DisplayName = "Illusion"),
+
+	/** Rewrites the form of a creature or thing. */
+	Transformation UMETA(DisplayName = "Transformation"),
+
+	/** Brings matter, light or a creature into being. */
+	Creation       UMETA(DisplayName = "Creation"),
+
+	/** Oaths, true names and geasa -- the Dreaming enforcing a promise. */
+	Binding        UMETA(DisplayName = "Binding"),
+
+	/** Acts on the world rather than on a character: light, weather, growth, objects. */
+	Utility        UMETA(DisplayName = "Utility")
+};
+
+/** How the wound is taken, in the book's three grades. */
+UENUM(BlueprintType)
+enum class ECantripDamageType : uint8
+{
+	/** Bruises. Soaked by almost anything, heals in hours. */
+	Bashing      UMETA(DisplayName = "Bashing"),
+
+	/** Cuts and burns. The ordinary currency of a fight. */
+	Lethal       UMETA(DisplayName = "Lethal"),
+
+	/** Wounds that do not simply mend -- cold iron, and fire to a fae thing. */
+	Aggravated   UMETA(DisplayName = "Aggravated")
+};
+
+/**
+ * How a cantrip reaches what it acts on.
+ *
+ * Separated from the role because they vary independently: a Damage cantrip may be a
+ * touch, a look or a thrown fireball, and so may a Healing one. Making delivery a
+ * property rather than a class is what keeps thirteen role classes from becoming fifty.
+ */
+UENUM(BlueprintType)
+enum class ECantripDelivery : uint8
+{
+	/** On the caster. */
+	SelfCast       UMETA(DisplayName = "Self"),
+
+	/** Whatever she is looking at, traced from the eyes rather than the camera so a
+	 *  cantrip cannot reach round a corner the body is standing behind. */
+	AimTrace       UMETA(DisplayName = "Aim Trace"),
+
+	/** Whatever SetCantripTarget was handed -- a dialogue partner, a selected oathmate. */
+	ExplicitTarget UMETA(DisplayName = "Explicit Target"),
+
+	/** Thrown. Spawns ACantripProjectile and acts wherever it lands. */
+	Projectile     UMETA(DisplayName = "Projectile"),
+
+	/** Everything within a radius of the caster. */
+	AreaBurst      UMETA(DisplayName = "Area Burst")
+};
+
+/**
+ * One Art, described.
+ *
+ * The cantrip table says what each of the ninety workings does; nothing said what an ART
+ * is. That text belongs in data rather than in a widget's variable, because the spellbook,
+ * the character sheet and a tooltip all want the same sentence, and three copies of it
+ * drift apart the first time one is edited.
+ *
+ * Keyed by the tag's leaf -- "Pyretics", "DragonsIre" -- so a row and its Art cannot be
+ * matched up wrongly.
+ */
+USTRUCT(BlueprintType)
+struct CHANGELING_API FCantripArtInfo : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	/** Properly spelled and punctuated: "Dragon's Ire", not the tag leaf. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art")
+	FText DisplayName;
+
+	/** A sentence or two. What this Art is FOR, in the world's terms. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art",
+		meta = (MultiLine = "true"))
+	FText Description;
+
+	/**
+	 * Overrides the roundel composed from the naming pattern.
+	 *
+	 * Left empty for all eighteen at present -- the generated symbols follow the pattern
+	 * exactly. It exists for the Art that one day wants a hand-made icon.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art")
+	TSoftObjectPtr<UTexture2D> Symbol;
+};
+
+/**
+ * The book's own words for a cantrip, kept apart from the row that drives play.
+ *
+ * A SEPARATE table on purpose. DT_Cantrips carries the one-line descriptions the hotbar
+ * and the list use, plus Kind, Role and the cast tiers -- all hand-tuned. Adding a long
+ * text column there would mean reimporting that table to fill it, and a reimport replaces
+ * every row, taking the tuning with it.
+ *
+ * Keyed by the same row names, so the two are joined by lookup and neither can disturb
+ * the other.
+ */
+USTRUCT(BlueprintType)
+struct CHANGELING_API FCantripLore : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	/** The full passage: what the working is, and what it looks like in the world. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lore",
+		meta = (MultiLine = "true"))
+	FText FullDescription;
+
+	/** How it resolves at the table -- Realms, successes, what each degree buys. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lore",
+		meta = (MultiLine = "true"))
+	FText SystemText;
+};
+
+/** What a resolved casting is acting upon. */
+USTRUCT(BlueprintType)
+struct CHANGELING_API FCantripTargets
+{
+	GENERATED_BODY()
+
+	/** Everyone caught. Empty for a cantrip that acts on a place rather than a person. */
+	UPROPERTY(BlueprintReadOnly, Category = "Cantrip")
+	TArray<TObjectPtr<AActor>> Actors;
+
+	/** Where it landed. Always set, even when Actors is empty. */
+	UPROPERTY(BlueprintReadOnly, Category = "Cantrip")
+	FVector Point = FVector::ZeroVector;
+
+	/** Surface normal at that point, for orienting effects. */
+	UPROPERTY(BlueprintReadOnly, Category = "Cantrip")
+	FVector Normal = FVector::UpVector;
+
+	/**
+	 * The first actor, or null. Convenience for the many cantrips that act on one thing.
+	 *
+	 * Plain C++ rather than a UFUNCTION: a USTRUCT cannot carry one. Blueprint reads
+	 * Actors directly and takes index 0 itself.
+	 */
+	AActor* Primary() const { return Actors.Num() ? Actors[0] : nullptr; }
 };
 
 /**
@@ -221,10 +462,13 @@ struct CHANGELING_API FCantripSpec : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cantrip")
 	ECantripManifestation Manifestation = ECantripManifestation::Wyrd;
 
-	/** Realms this cantrip can legitimately be aimed through. The caster's own
-	 *  ratings decide which of these are actually available to her. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cantrip")
-	TArray<ECantripRealm> AllowedRealms = { ECantripRealm::Actor };
+	// No AllowedRealms here, deliberately (removed 2026-08-29). Every cantrip can be
+	// aimed through every Realm -- what changes is the EFFECT, not the permission.
+	// Pyretics through Actor sets a person alight; through Prop it lights a torch. A
+	// per-cantrip whitelist could only ever have said "all of them", and the column
+	// spent ninety rows saying "Actor" instead, which was worse than saying nothing.
+	// Which Realms a given casting uses is the player's standing choice, kept per
+	// cantrip on UCantripHotbarComponent.
 
 	/**
 	 * Effect applied on success. Magnitude should read the graded outcome rather
@@ -271,6 +515,26 @@ struct CHANGELING_API FCantripSpec : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cantrip")
 	ECantripKind Kind = ECantripKind::Instant;
 
+	/**
+	 * What the player reaches for this cantrip FOR. Drives sorting and filtering.
+	 *
+	 * Utility is the default because it is the honest answer for an unclassified row --
+	 * "it does something to the world" -- rather than a claim the cantrip damages or
+	 * heals when nobody has said so.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cantrip")
+	ECantripRole Role = ECantripRole::Utility;
+
+	/**
+	 * A second role, where one genuinely applies. Thirty-six of the ninety carry one.
+	 *
+	 * Optional on purpose: Phoenix Song destroys AND resurrects, and flattening that to
+	 * either alone loses the cantrip. Set it equal to Role to mean "no secondary" -- a
+	 * separate bool would be one more thing to keep in step.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cantrip")
+	ECantripRole SecondaryRole = ECantripRole::Utility;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cantrip|Presentation")
 	FGameplayTag ChannelCue;
 
@@ -297,6 +561,19 @@ struct CHANGELING_API FCantripAttempt
 	/** Personal Banality plus whatever the place imposes. Raises difficulty. */
 	UPROPERTY(BlueprintReadWrite, Category = "Cantrip")
 	int32 BanalityModifier = 0;
+
+	/**
+	 * Dice removed by injury. Positive; see FChangelingWoundLevel.
+	 *
+	 * Takes dice OUT of the pool rather than raising the difficulty, and the two are not
+	 * interchangeable. Difficulty is how hard the working is -- a property of the cantrip
+	 * and the place, which Banality already speaks to. A wound does not make magic harder;
+	 * it makes HER worse at it, and fewer dice is what that means. It also stacks
+	 * differently: a bleeding changeling in a shopping centre is short of dice AND facing
+	 * a wall, which is exactly as bad as it sounds.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "Cantrip")
+	int32 WoundPenalty = 0;
 
 	/** Tier reached by holding the cast, 0-5. Subtracted from the base difficulty. */
 	UPROPERTY(BlueprintReadWrite, Category = "Cantrip")
@@ -344,4 +621,233 @@ struct CHANGELING_API FCantripOutcome
 
 	UPROPERTY(BlueprintReadOnly, Category = "Cantrip")
 	int32 PoolUsed = 0;
+};
+
+// ── How the spellbook looks ─────────────────────────────────────────────────────
+//
+// The book's appearance is decided here rather than in the widget graphs. A row has
+// three possible looks and five widgets to paint; wiring that as branches meant
+// fifteen colour pins, each of which silently kept its default when left alone. One
+// resolved struct means the graph has no branches at all -- and a colour that has
+// drifted is a value you can read, not a pin you have to go and find.
+
+/**
+ * Where a cantrip stands relative to her rating in its Art.
+ *
+ * Three states rather than the two bools the entry carries, because exactly one of
+ * them decides the row's whole appearance. A pair of bools admits a fourth
+ * combination that cannot happen, and every reader then has to decide what to do
+ * about it. This does not.
+ */
+UENUM(BlueprintType)
+enum class ECantripStanding : uint8
+{
+	/** Her rating reaches it: lit glass. */
+	Known,
+	/** One dot away -- the only row on the page she can act on. */
+	NextToLearn,
+	/** Past her reach for now: glass with no light behind it. */
+	Locked
+};
+
+/**
+ * Every colour the spellbook paints, in one place.
+ *
+ * A plain struct on the component rather than a DataAsset, so it cannot be null. A
+ * palette that must be assigned is a palette that will one day ship as white boxes,
+ * and this project has already paid that price once with the lore table. Defaults
+ * compile in and work with no setup; the Blueprint's class defaults can still tune
+ * them without a rebuild.
+ *
+ * Authored as sRGB hex to match what the Designer's colour picker shows, and
+ * converted to linear once in the constructor.
+ */
+USTRUCT(BlueprintType)
+struct CHANGELING_API FCantripPalette
+{
+	GENERATED_BODY()
+
+	FCantripPalette();
+
+	// Row backing. Alpha is doing the work here -- these sit over the page ground
+	// and are meant to read as a pane catching light, not as a filled bar.
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Row")
+	FLinearColor RowKnown;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Row")
+	FLinearColor RowNextToLearn;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Row")
+	FLinearColor RowLocked;
+
+	// Cantrip name.
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Name")
+	FLinearColor NameKnown;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Name")
+	FLinearColor NameNextToLearn;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Name")
+	FLinearColor NameLocked;
+
+	// The level roundel. Lit is plain white so the artwork's own colour comes
+	// through; locked is dimmed rather than tinted, so it reads as unlit glass.
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Icon")
+	FLinearColor IconLit;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Icon")
+	FLinearColor IconLocked;
+
+	// The chip at the right of the row.
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Chip")
+	FLinearColor ChipBound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Chip")
+	FLinearColor ChipKnown;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Chip")
+	FLinearColor ChipNextToLearn;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Chip")
+	FLinearColor ChipLocked;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Chip")
+	FLinearColor ChipTextLit;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Palette|Chip")
+	FLinearColor ChipTextLocked;
+};
+
+/**
+ * The book's chrome: grounds, leading and ink.
+ *
+ * Separate from FCantripPalette because the two are read at different times by
+ * different things. FCantripPalette answers "what standing is this cantrip in", which
+ * only the hotbar can know, at runtime. This answers "what is a spellbook made of",
+ * which is fixed -- so the widgets carry it themselves and can paint in the Designer,
+ * with no component and no PIE session.
+ *
+ * A leaded window is three materials, and the book spends them the same way. Came is
+ * the dark structure and carries no meaning. Glass is saturated colour, spent only in
+ * the Art roundels, which are literally stained glass. Ink is what is written on the
+ * page. Gold is light coming through, and is reserved: the Art's progress, a cantrip's
+ * reachability, and the ring around the Art she is reading. Colour that appears
+ * everywhere stops meaning anything.
+ */
+USTRUCT(BlueprintType)
+struct CHANGELING_API FCantripGlass
+{
+	GENERATED_BODY()
+
+	FCantripGlass();
+
+	// Grounds, darkest first. The rail sits behind the page, the page behind the
+	// detail, so each step toward the reader is a shade lighter.
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Ground")
+	FLinearColor Rail;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Ground")
+	FLinearColor Page;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Ground")
+	FLinearColor Detail;
+
+	// The leading. One colour and one width everywhere, which is the whole trick --
+	// panes read as panes because the line between them never varies.
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Came")
+	FLinearColor Came;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Came")
+	float CameWidth;
+
+	/** Corner radius for a pane. Roundels use a half-height radius instead. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Came")
+	float PaneRadius;
+
+	// Ink, brightest first.
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Ink")
+	FLinearColor Parchment;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Ink")
+	FLinearColor Pewter;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Ink")
+	FLinearColor Muted;
+
+	// Light through the window. Spent sparingly or it stops reading as light.
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Light")
+	FLinearColor Gold;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Light")
+	FLinearColor Amethyst;
+
+	// The five elements, for anything that wants to speak in a cantrip's own colour.
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Element")
+	FLinearColor Air;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Element")
+	FLinearColor Fire;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Element")
+	FLinearColor Water;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Element")
+	FLinearColor Earth;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Glass|Element")
+	FLinearColor Wyrd;
+
+	/** The elemental colour for an element, or Wyrd for anything unrecognised. */
+	FLinearColor ForElement(ECantripElement Element) const;
+};
+
+/**
+ * One row's finished appearance: nothing left to decide, only values to apply.
+ *
+ * The widget's Refresh reads this and calls six setters in a straight line. No
+ * branch, no comparison, no colour typed into a pin -- which is the point. The row
+ * cannot disagree with the page about what "known" looks like, because neither of
+ * them is deciding.
+ */
+USTRUCT(BlueprintType)
+struct CHANGELING_API FCantripRowStyle
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Cantrip|Spellbook")
+	ECantripStanding Standing = ECantripStanding::Locked;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Cantrip|Spellbook")
+	FLinearColor RowTint = FLinearColor::Transparent;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Cantrip|Spellbook")
+	FSlateColor NameColor;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Cantrip|Spellbook")
+	FLinearColor IconTint = FLinearColor::White;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Cantrip|Spellbook")
+	FLinearColor ChipTint = FLinearColor::Transparent;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Cantrip|Spellbook")
+	FSlateColor ChipTextColor;
+
+	/**
+	 * What the chip says: the hotbar key when she has laid it out, "KNOWN" when she
+	 * can cast it but has not, and the rung otherwise.
+	 *
+	 * Composed here because the alternative -- a Format Text node per state in the
+	 * widget -- is three more places for the wording to drift.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Cantrip|Spellbook")
+	FText ChipText;
 };

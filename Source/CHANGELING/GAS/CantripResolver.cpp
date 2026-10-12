@@ -21,7 +21,14 @@ int32 UCantripResolver::ComputePool(const FCantripAttempt& Attempt)
 	// Realms is free; it is the weakest link that sets the ceiling.
 	const int32 Art = FMath::Max(0, Attempt.ArtRating);
 	const int32 Realm = FMath::Max(0, Attempt.LowestPrimaryRealmRating);
-	return Art + Realm;
+
+	// Injury comes off the top. Clamped at zero rather than allowed to go negative: a
+	// Crippled changeling casts with nothing, which is already the worst a pool can be,
+	// and a negative pool would flow into the Nightmare split below and start handing out
+	// dice from the wrong side.
+	const int32 Wounds = FMath::Max(0, Attempt.WoundPenalty);
+
+	return FMath::Max(0, Art + Realm - Wounds);
 }
 
 int32 UCantripResolver::ComputeDifficulty(const FCantripAttempt& Attempt)

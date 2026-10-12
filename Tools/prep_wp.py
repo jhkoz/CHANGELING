@@ -2,7 +2,7 @@
 into the project's 2x2 quadrant tiles, matching the existing basewp_* convention."""
 import os, numpy as np
 from PIL import Image
-T = r"G:\personal_projects\CHANGELING\Tools"
+T = os.path.dirname(os.path.abspath(__file__))
 def load(n): return np.array(Image.open(os.path.join(T, n)))
 def save(arr, n): Image.fromarray(arr.astype(np.uint16)).save(os.path.join(T, n))
 rep = []

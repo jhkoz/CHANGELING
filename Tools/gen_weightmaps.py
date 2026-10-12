@@ -11,7 +11,7 @@ Balanced + 4 wedges sum to 1 everywhere.
 Output full 505 per layer + WP tiles + color preview."""
 import os, math, numpy as np
 from PIL import Image
-T = r"G:\personal_projects\CHANGELING\Tools"
+T = os.path.dirname(os.path.abspath(__file__))
 N = 505; UPP = 200.0; c = (N-1)/2.0
 yy, xx = np.mgrid[0:N, 0:N].astype(np.float64)
 dx = (xx-c)*UPP; dy = (yy-c)*UPP

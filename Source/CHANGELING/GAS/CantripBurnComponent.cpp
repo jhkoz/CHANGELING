@@ -4,6 +4,7 @@
 
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
+#include "CantripBurnSubsystem.h"
 #include "FireDecalActor.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 
@@ -27,6 +28,27 @@ static TAutoConsoleVariable<int32> CVarBurnDrawTraces(
 UCantripBurnComponent::UCantripBurnComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+}
+
+void UCantripBurnComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// Configure the shared subsystem now, so a detonation is never the thing that
+	// discovers it was never set up. GetSharedBurn does the adopting.
+	if (!DecalClass)
+	{
+		// The same warning ReceiveParticleData raises, but at the moment it becomes
+		// true rather than the first time a flame happens to touch something.
+		UE_LOG(LogCantripBurn, Warning,
+			TEXT("No DecalClass set on %s -- no burn marks can appear, from any source."),
+			*GetNameSafe(GetOwner()));
+
+		bWarnedNoDecalClass = true;
+		return;
+	}
+
+	GetSharedBurn();
 }
 
 void UCantripBurnComponent::ReceiveParticleData_Implementation(
@@ -113,6 +135,22 @@ void UCantripBurnComponent::ReceiveParticleData_Implementation(
 	FlushStats();
 }
 
+int32 UCantripBurnComponent::SharedLiveCount() const
+{
+	// Read from the shared population rather than a local list. Reporting this
+	// component's own count would now always say zero, which is worse than saying
+	// nothing -- it reads as "no marks exist" while the level is covered in them.
+	if (const UWorld* World = GetWorld())
+	{
+		if (const UCantripBurnSubsystem* Shared = World->GetSubsystem<UCantripBurnSubsystem>())
+		{
+			return Shared->GetLiveCount();
+		}
+	}
+
+	return 0;
+}
+
 void UCantripBurnComponent::FlushStats()
 {
 	// Either source turns it on, so the checkbox stays useful for a build you always
@@ -144,7 +182,7 @@ void UCantripBurnComponent::FlushStats()
 		TEXT("hitsurface=%d flammable=%d"),
 		Stats.Batches, Stats.Received, Stats.Kept, Stats.TooClose, Stats.NoTrace,
 		Stats.DecalHits, Stats.SurfaceHits, Stats.ChanceFail, Stats.Spawned,
-		LiveDecals.Num(), Stats.NoPhysMat, Stats.Unmapped,
+		SharedLiveCount(), Stats.NoPhysMat, Stats.Unmapped,
 		static_cast<int32>(SampleSurface.GetValue()), bSampleFlammable ? 1 : 0);
 
 	// The geometry behind those counts. If raw and start are nowhere near each other
@@ -225,35 +263,54 @@ void UCantripBurnComponent::HandleHit(const FBasicParticleData& Particle)
 
 	++Stats.SurfaceHits;
 
-	// Checked before the chance roll, because deepening an existing mark is not a new
-	// mark and should not be gated by whether the surface takes one.
-	if (AFireDecalActor* Nearby = FindNearbyDecal(SurfaceHit.ImpactPoint))
+	// Handed to the shared population rather than kept here. The component still decides
+	// WHERE to paint -- that is the flamethrower's business, and an explosion answers it
+	// differently -- but every mark in the level belongs to one budget, one spacing rule
+	// and one recycler. Two systems each capping themselves at 64 is a level with 128.
+	UCantripBurnSubsystem* Shared = GetSharedBurn();
+	if (!Shared)
 	{
-		++Stats.DecalHits;
-		Nearby->ApplyFireHit(Particle.Size);
 		return;
 	}
 
-	const FCantripBurnSurface& Surface = SurfaceFor(SurfaceHit);
+	// Counted before the call so the summary still distinguishes deepening from
+	// spawning, which is most of what makes that line worth reading.
+	const bool bHadNearby = Shared->FindNearby(SurfaceHit.ImpactPoint) != nullptr;
 
-	// Zero is how water and glass opt out without needing a special case anywhere.
-	if (Surface.MarkChance <= 0.0f)
+	if (AFireDecalActor* Touched = Shared->PaintAt(SurfaceHit, Particle.Size))
+	{
+		bHadNearby ? ++Stats.DecalHits : ++Stats.Spawned;
+	}
+	else
 	{
 		++Stats.ChanceFail;
-		return;
+	}
+}
+
+UCantripBurnSubsystem* UCantripBurnComponent::GetSharedBurn()
+{
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
 	}
 
-	if (FMath::FRand() > Surface.MarkChance)
+	UCantripBurnSubsystem* Shared = World->GetSubsystem<UCantripBurnSubsystem>();
+	if (!Shared)
 	{
-		++Stats.ChanceFail;
-		return;
+		return nullptr;
 	}
 
-	if (AFireDecalActor* Decal = SpawnDecal(SurfaceHit, Surface.bFlammable))
+	// Configured from the first component to need it. The surface table is already
+	// authored on the character; making the subsystem borrow it beats asking anyone to
+	// type nine physical surfaces into Project Settings a second time.
+	if (!Shared->IsConfigured())
 	{
-		++Stats.Spawned;
-		Decal->ApplyFireHit(Particle.Size);
+		Shared->AdoptConfig(DecalClass, Surfaces, DefaultSurface, MaxLiveDecals,
+			MinDecalSpacing, DecalScaleRange);
 	}
+
+	return Shared;
 }
 
 const FCantripBurnSurface& UCantripBurnComponent::SurfaceFor(const FHitResult& Hit)
@@ -287,138 +344,4 @@ const FCantripBurnSurface& UCantripBurnComponent::SurfaceFor(const FHitResult& H
 	// Unpainted geometry is most of a level early on, and silently refusing to mark it
 	// looks like the ability is broken rather than like the surface is unusual.
 	return DefaultSurface;
-}
-
-AFireDecalActor* UCantripBurnComponent::SpawnDecal(const FHitResult& Hit, bool bFlammable)
-{
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return nullptr;
-	}
-
-	// Spun at random about the surface normal.
-	//
-	// The projection direction is fixed by the normal, but the roll around it is free --
-	// and leaving it deterministic stamps every mark on flat ground at the same
-	// orientation. Overlap a dozen of those and the eye reads one texture repeated
-	// rather than a burnt patch. Spinning each one costs nothing and is most of what
-	// makes a cluster look like fire damage.
-	//
-	// Built up here because the recycle path below needs it too -- a reused mark landing
-	// at its old orientation is the same repetition by another route.
-	const FQuat Spin(Hit.ImpactNormal.GetSafeNormal(),
-		FMath::FRandRange(0.0f, 2.0f * PI));
-
-	const FRotator Rotation =
-		(Spin * FRotationMatrix::MakeFromZ(Hit.ImpactNormal).ToQuat()).Rotator();
-
-	// Prune anything destroyed elsewhere -- a streamed-out level, a demolished wall --
-	// before deciding whether the budget is actually full.
-	LiveDecals.RemoveAll([](const TObjectPtr<AFireDecalActor>& Decal)
-	{
-		return !IsValid(Decal);
-	});
-
-	if (LiveDecals.Num() >= MaxLiveDecals)
-	{
-		if (AFireDecalActor* Recycled = RecycleColdestDecal())
-		{
-			Recycled->SetActorLocation(Hit.ImpactPoint);
-			Recycled->SetActorRotation(Rotation);
-
-			// Cleared, or the mark arrives at the opacity ceiling it earned somewhere
-			// else and appears fully burnt the instant it is placed.
-			Recycled->ReuseForSurface(bFlammable);
-			return Recycled;
-		}
-	}
-
-	// Rotation is built from the normal as the actor's UP, not its forward.
-	//
-	// ADecalActor already pitches its decal component -90 in the constructor, so an
-	// upright actor projects straight down and needs no help. Pointing the actor's
-	// forward into the surface as well stacks a second -90 on top, and the projection
-	// ends up running PARALLEL to the surface -- which smears the texture across it in
-	// stripes inside a hard-edged box, and looks for all the world like a broken
-	// material rather than a rotation that was applied twice.
-
-	FActorSpawnParameters Spawn;
-	Spawn.SpawnCollisionHandlingOverride =
-		ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	Spawn.Owner = GetOwner();
-
-	AFireDecalActor* Decal = World->SpawnActorDeferred<AFireDecalActor>(
-		DecalClass, FTransform(Rotation, Hit.ImpactPoint), GetOwner());
-
-	if (!Decal)
-	{
-		return nullptr;
-	}
-
-	// Before BeginPlay, so the right parent material is chosen when the dynamic
-	// instance is created rather than swapped afterwards.
-	Decal->ConfigureForSurface(bFlammable);
-	Decal->FinishSpawning(FTransform(Rotation, Hit.ImpactPoint));
-
-	// Varied so a swept flame leaves a run of different marks rather than a row of
-	// identical stamps, which the eye reads as tiling immediately.
-	const float ScaleX = FMath::FRandRange(DecalScaleRange.X, DecalScaleRange.Y);
-	const float ScaleY = FMath::FRandRange(DecalScaleRange.X, DecalScaleRange.Y);
-	Decal->SetActorScale3D(FVector(1.0f, ScaleX, ScaleY));
-
-	LiveDecals.Add(Decal);
-	return Decal;
-}
-
-AFireDecalActor* UCantripBurnComponent::FindNearbyDecal(const FVector& Point) const
-{
-	if (MinDecalSpacing <= 0.0f)
-	{
-		return nullptr;
-	}
-
-	const float LimitSq = FMath::Square(MinDecalSpacing);
-
-	AFireDecalActor* Closest = nullptr;
-	float BestSq = LimitSq;
-
-	// Nearest rather than first found, so a hit between two marks deepens the one it is
-	// actually inside instead of whichever happens to sit earlier in the array.
-	for (const TObjectPtr<AFireDecalActor>& Decal : LiveDecals)
-	{
-		if (!IsValid(Decal))
-		{
-			continue;
-		}
-
-		const float DistSq = FVector::DistSquared(Decal->GetActorLocation(), Point);
-		if (DistSq < BestSq)
-		{
-			BestSq = DistSq;
-			Closest = Decal;
-		}
-	}
-
-	return Closest;
-}
-
-AFireDecalActor* UCantripBurnComponent::RecycleColdestDecal()
-{
-	AFireDecalActor* Coldest = nullptr;
-	float BestTime = TNumericLimits<float>::Max();
-
-	// Least recently struck, not oldest. A mark the player has been holding the flame
-	// on for ten seconds is the one they are looking at; the one they swept past on the
-	// way in is the one to lose.
-	for (const TObjectPtr<AFireDecalActor>& Decal : LiveDecals)
-	{
-		if (IsValid(Decal) && Decal->GetLastHitTime() < BestTime)
-		{
-			BestTime = Decal->GetLastHitTime();
-			Coldest = Decal;
-		}
-	}
-
-	return Coldest;
 }

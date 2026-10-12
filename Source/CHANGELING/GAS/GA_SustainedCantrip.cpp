@@ -4,6 +4,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
+#include "Animation/AnimMontage.h"
 #include "CHANGELINGCharacter.h"
 #include "CantripBurnComponent.h"
 #include "CantripInternal.h"
@@ -107,6 +108,20 @@ int32 UGA_SustainedCantrip::DouseSustainedCantrips(AActor* Avatar,
 	return Doused;
 }
 
+void UGA_SustainedCantrip::InputPressed(const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo)
+{
+	Super::InputPressed(Handle, ActorInfo, ActivationInfo);
+
+	// Only once the working is actually open. A press arriving during the wind-up is the
+	// player still casting, not the player changing their mind.
+	if (bDouseOnSecondPress && bSustaining)
+	{
+		CancelSustain();
+	}
+}
+
 void UGA_SustainedCantrip::CancelSustain()
 {
 	if (!bSustaining)
@@ -168,13 +183,139 @@ void UGA_SustainedCantrip::BeginSustain(int32 Successes)
 	bSustaining = true;
 	SustainSuccesses = FMath::Max(1, Successes);
 
+	// The working is lit, so she has stopped CASTING it -- and the casting tag is what
+	// stops her casting anything else. Left alone, a torch held up for two minutes would
+	// be two minutes of no other magic.
+	//
+	// This used to remove the tag by hand and put it back in EndAbility, so that the
+	// engine's own unconditional removal of an ActivationOwnedTag still had a count of
+	// its own to take. That balancing act is gone: the base class no longer OWNS the tag,
+	// it takes and drops it deliberately, and DropCastingTag is idempotent -- so this is
+	// now simply the moment her hands come free, said once.
+	DropCastingTag();
+
 	UE_LOG(LogSustainedCantrip, Log, TEXT("LIT: successes=%d duration=%.1fs pose=%d"),
 		Successes, DurationForSuccesses(Successes), static_cast<int32>(SustainedPose));
 
 	if (ACHANGELINGCharacter* Character = Cast<ACHANGELINGCharacter>(GetAvatarActorFromActorInfo()))
 	{
-		Character->SetCantripPose(SustainedPose);
+		// One of the two drives the arm, never both. A montage raising the hand while the
+		// pose blend also raises it gives a doubled rotation -- an arm bent somewhere no
+		// animator put it, and the montage gets the blame because it is the visible half.
+		Character->SetCantripPose(SustainedMontage ? ECantripPose::None : SustainedPose);
 	}
+
+	// Only if the wind-up has not already started it. A channelled cantrip plays its
+	// Begin section from ActivateAbility, so the gesture accompanies the HOLD instead of
+	// arriving after the roll -- replaying here would restart the raise on the frame the
+	// working opens, which is what made the whole cast read as late.
+	if (SustainedMontage && !bSustainedMontageStarted)
+	{
+		StartSustainedMontage();
+	}
+
+	FinishBeginSustain(Successes);
+}
+
+void UGA_SustainedCantrip::StartSustainedMontage()
+{
+	bSustainedMontageStarted = true;
+
+	if (ACHANGELINGCharacter* Character = Cast<ACHANGELINGCharacter>(GetAvatarActorFromActorInfo()))
+	{
+		// One of the two drives the arms, never both -- and now that this can run during
+		// the wind-up, the pose has to be cleared here rather than waiting for the
+		// working to open. A montage raising the hands while the pose blend also raises
+		// them gives a doubled rotation, and the montage gets the blame.
+		Character->SetCantripPose(ECantripPose::None);
+	}
+
+	if (SustainedMontage)
+	{
+		if (UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
+		{
+			const float PlayedLength = ASC->PlayMontage(this, CurrentActivationInfo,
+				SustainedMontage, MontagePlayRate, MontageBeginSection);
+
+			/**
+			 * Every way this can fail is silent, so all of it is reported at once.
+			 *
+			 * A length of zero means the montage never started -- wrong skeleton, or the
+			 * ability was not the one animating. A section index of -1 means the name on
+			 * this ability does not match the asset, and SetNextSectionName below will
+			 * quietly do nothing, so the montage plays through and blends out instead of
+			 * holding. And a slot the AnimGraph has no node for evaluates into nothing at
+			 * all: the montage runs, the log looks healthy, and the body never moves.
+			 */
+			const int32 BeginIdx = SustainedMontage->GetSectionIndex(MontageBeginSection);
+			const int32 LoopIdx  = SustainedMontage->GetSectionIndex(MontageLoopSection);
+			const int32 EndIdx   = SustainedMontage->GetSectionIndex(MontageEndSection);
+
+			const FName SlotName = SustainedMontage->SlotAnimTracks.Num() > 0
+				? SustainedMontage->SlotAnimTracks[0].SlotName
+				: NAME_None;
+
+			UE_LOG(LogSustainedCantrip, Log,
+				TEXT("MONTAGE '%s': played=%.2fs slot='%s' sections begin='%s'(%d) loop='%s'(%d) end='%s'(%d)"),
+				*GetNameSafe(SustainedMontage), PlayedLength, *SlotName.ToString(),
+				*MontageBeginSection.ToString(), BeginIdx,
+				*MontageLoopSection.ToString(), LoopIdx,
+				*MontageEndSection.ToString(), EndIdx);
+
+			if (PlayedLength <= 0.0f || BeginIdx == INDEX_NONE || LoopIdx == INDEX_NONE)
+			{
+				UE_LOG(LogSustainedCantrip, Warning,
+					TEXT("MONTAGE '%s' will not hold: %s"), *GetNameSafe(SustainedMontage),
+					PlayedLength <= 0.0f ? TEXT("it did not start at all")
+						: TEXT("a section name does not match the asset"));
+			}
+
+			if (!MontageLoopSection.IsNone())
+			{
+				// Set after Play, not before: the section chain is per-playback, and
+				// starting the montage resets it to whatever the asset says.
+				ASC->CurrentMontageSetNextSectionName(MontageBeginSection, MontageLoopSection);
+				ASC->CurrentMontageSetNextSectionName(MontageLoopSection, MontageLoopSection);
+
+				if (bFreezeOnLoopSection)
+				{
+					// Timed off the ASSET's own section boundaries rather than a number
+					// typed beside them, so retiming the montage moves the freeze with it.
+					const int32 BeginIndex = SustainedMontage->GetSectionIndex(MontageBeginSection);
+					const int32 LoopIndex = SustainedMontage->GetSectionIndex(MontageLoopSection);
+
+					if (BeginIndex != INDEX_NONE && LoopIndex != INDEX_NONE)
+					{
+						float BeginStart = 0.0f, BeginEnd = 0.0f;
+						float LoopStart = 0.0f, LoopEnd = 0.0f;
+
+						SustainedMontage->GetSectionStartAndEndTime(BeginIndex, BeginStart, BeginEnd);
+						SustainedMontage->GetSectionStartAndEndTime(LoopIndex, LoopStart, LoopEnd);
+
+						// A hair past the boundary, so the pause lands inside the loop
+						// section rather than on the last frame of the raise.
+						const float Rate = FMath::Max(0.01f, MontagePlayRate);
+						const float Wait = ((LoopStart - BeginStart) / Rate) + 0.01f;
+
+						if (UWorld* World = GetWorld())
+						{
+							World->GetTimerManager().SetTimer(FreezeTimer, this,
+								&UGA_SustainedCantrip::FreezeSustainedMontage,
+								FMath::Max(0.01f, Wait), false);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+void UGA_SustainedCantrip::FinishBeginSustain(int32 Successes)
+{
+	// The roll is known NOW. Anything a channelled cantrip already gathered during the
+	// wind-up was sized against a placeholder, so it gets resized here; anything spawning
+	// later reads the same values and is unaffected by this running early.
+	ApplySuccessScaling();
 
 	UWorld* World = GetWorld();
 
@@ -220,9 +361,71 @@ void UGA_SustainedCantrip::ScheduleEffectSpawn()
 	}
 }
 
+void UGA_SustainedCantrip::ApplySuccessScaling()
+{
+	/**
+	 * Applied wherever it is called from, because the effect can now outlive the moment
+	 * the successes are known.
+	 *
+	 * A channelled cantrip GATHERS: the flame spawns during the wind-up, before the roll
+	 * has happened, when SustainSuccesses is still its placeholder 1. Computing the scale
+	 * once at spawn therefore gave every casting the baseline, and a five-success stream
+	 * looked exactly like a one-success one. So the sizing is a function that runs again
+	 * the moment the roll lands.
+	 *
+	 * Idempotent on purpose: it sets absolute values rather than multiplying what is
+	 * already there, so calling it twice does not compound.
+	 */
+	const int32 Extra = FMath::Max(0, SustainSuccesses - 1);
+
+	if (SustainedComponent)
+	{
+		// Successes past the first, matching how the light's radius is derived -- a bare
+		// success is the baseline rather than a penalty.
+		const float Scale = EffectScale + (EffectScalePerSuccess * Extra);
+
+		SustainedComponent->SetRelativeScale3D(FVector(FMath::Max(0.01f, Scale)));
+
+		// Written here rather than only from a channel's per-frame sampling, so a working
+		// with no intensity curve at all -- a torch, which simply burns -- still answers
+		// to the roll. A channel overwrites this every sample with the curve-shaped
+		// version; for everything else this single write is the whole story.
+		if (!IntensityParameter.IsNone())
+		{
+			SustainedComponent->SetVariableFloat(IntensityParameter, IntensityByRoll());
+		}
+	}
+
+	if (SustainedLight)
+	{
+		SustainedLight->SetAttenuationRadius(LightRadius + (LightRadiusPerSuccess * Extra));
+
+		// Brightness grows on the square root while radius grows linearly: doubling a
+		// light's reach does not make it look twice as bright, and scaling both together
+		// blows out everything within arm's reach on a strong casting.
+		LightBaseIntensity = LightIntensity * FMath::Sqrt(static_cast<float>(SustainSuccesses));
+		SustainedLight->SetIntensity(LightBaseIntensity);
+	}
+}
+
 void UGA_SustainedCantrip::SpawnSustainedEffect()
 {
-	if (!bSustaining)
+	if (!CanSpawnSustainedEffect())
+	{
+		return;
+	}
+
+	/**
+	 * Already burning: do nothing.
+	 *
+	 * Two paths can reach here for one casting now that a channel gathers during the
+	 * wind-up. The notify spawns it, and then ScheduleEffectSpawn -- which runs when the
+	 * working opens -- sees bEffectStartSeen already set and spawns "the one that must
+	 * have been missed". Without this guard the second call overwrites SustainedComponent
+	 * and the first system is orphaned: still attached, still burning, and no longer held
+	 * by anything that knows how to put it out.
+	 */
+	if (SustainedComponent)
 	{
 		return;
 	}
@@ -262,10 +465,7 @@ void UGA_SustainedCantrip::SpawnSustainedEffect()
 	// After spawning, because SnapToTargetIncludingScale takes the socket's scale and
 	// would discard anything set beforehand. Nothing else touches scale afterwards --
 	// UpdateHandSpan only ever sets relative LOCATION -- so this survives.
-	if (SustainedComponent && !FMath::IsNearlyEqual(EffectScale, 1.0f))
-	{
-		SustainedComponent->SetRelativeScale3D(FVector(EffectScale));
-	}
+	ApplySuccessScaling();
 
 	// Full strength on spawn. The fade IN is the emitter's own curve on age -- it
 	// knows when it started; only the ending needs telling.
@@ -500,13 +700,72 @@ void UGA_SustainedCantrip::UpdateLightFlicker()
 	SustainedLight->SetIntensity(LightBaseIntensity * Scale);
 }
 
+void UGA_SustainedCantrip::FreezeSustainedMontage()
+{
+	if (!bSustaining || !SustainedMontage)
+	{
+		return;
+	}
+
+	if (UAnimInstance* AnimInstance =
+		GetCurrentActorInfo() ? GetCurrentActorInfo()->GetAnimInstance() : nullptr)
+	{
+		// Paused, not stopped: the pose stays exactly where the animator left it, the
+		// slot keeps its weight, and the lowering is still there to resume into.
+		if (AnimInstance->Montage_IsPlaying(SustainedMontage))
+		{
+			AnimInstance->Montage_Pause(SustainedMontage);
+		}
+	}
+}
+
 void UGA_SustainedCantrip::StopSustain(bool bRanOut)
 {
-	if (!bSustaining)
+	/**
+	 * A cast abandoned during the WIND-UP never sustained -- but a channelled cantrip has
+	 * by then already started its montage and gathered its flame in her hands. Falling
+	 * straight out here would leave both running on someone who never finished the cast:
+	 * a fire burning out of a pair of hands that have gone back to walking.
+	 *
+	 * So the teardown below runs for that case too. Everything in it is a release --
+	 * jump the montage to its End section, clear the timers, destroy the effect -- and
+	 * releasing something that was never taken is already handled by each of them.
+	 */
+	const bool bAbandonedWindup = !bSustaining && bSustainedMontageStarted;
+
+	if (!bSustaining && !bAbandonedWindup)
 	{
 		return;
 	}
 	bSustaining = false;
+
+	// Before anything else in this function, and long before EndAbility: the section
+	// command is refused once this is no longer the animating ability, and the arm would
+	// be left up until something else happened to move it.
+	if (SustainedMontage && !MontageEndSection.IsNone())
+	{
+		if (UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
+		{
+			if (ASC->GetCurrentMontage() == SustainedMontage)
+			{
+				// Resumed first. A paused montage takes the jump and then sits on the
+				// first frame of the lowering, which looks like the arm sticking rather
+				// than coming down.
+				if (UAnimInstance* AnimInstance = GetCurrentActorInfo()
+					? GetCurrentActorInfo()->GetAnimInstance() : nullptr)
+				{
+					AnimInstance->Montage_Resume(SustainedMontage);
+				}
+
+				ASC->CurrentMontageJumpToSection(MontageEndSection);
+			}
+		}
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(FreezeTimer);
+	}
 
 	if (UWorld* World = GetWorld())
 	{
@@ -634,5 +893,27 @@ void UGA_SustainedCantrip::EndAbility(const FGameplayAbilitySpecHandle Handle,
 	// cannot be left raised holding a fire that is no longer there.
 	StopSustain(/*bRanOut*/ false);
 
+	/**
+	 * Per-CASTING state, cleared for the next one.
+	 *
+	 * These abilities are InstancedPerActor: one object serves every cast she ever makes,
+	 * so anything latched during a casting is still latched at the start of the next. Left
+	 * set, this flag made BeginSustain skip the montage on every cast after the first --
+	 * the working still lit, the light still came on, and she simply never raised her arm
+	 * again. A channel hid it, because its montage starts from ActivateAbility without
+	 * consulting the flag at all.
+	 */
+	bSustainedMontageStarted = false;
+
+	// Back to a bare success for the same reason. Left at the last roll's value, a cast
+	// that gathers before it rolls would gather at the FIERCENESS OF THE PREVIOUS ONE --
+	// so a weak casting following a strong one would flare and then shrink as the roll
+	// landed, which reads as the cantrip losing its nerve.
+	SustainSuccesses = 1;
+
+	// Nothing to put back. The casting tag used to be re-added here so that the engine's
+	// unconditional removal of an ActivationOwnedTag would have a count of its own to
+	// take; the base class no longer owns it, so there is no removal left to feed and
+	// Super::EndAbility drops it exactly once whether BeginSustain got there first or not.
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

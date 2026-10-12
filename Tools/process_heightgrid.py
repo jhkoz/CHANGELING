@@ -3,7 +3,7 @@ smoothed 16-bit heightmap.  Denoise = low-pass that removes jagged high-freq
 noise (the stretching source) while keeping macro layout (island/moat/rivers)."""
 import os, json, numpy as np
 from PIL import Image
-T=r"G:\personal_projects\CHANGELING\Tools"
+T = os.path.dirname(os.path.abspath(__file__))
 d=json.load(open(os.path.join(T,"heightgrid.json")))
 Z=np.array(d["z"],np.float32); G=d["G"]
 print("loaded %dx%d  Z %.0f..%.0f"%(G,G,Z.min(),Z.max()))

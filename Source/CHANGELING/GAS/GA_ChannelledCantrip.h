@@ -1,7 +1,9 @@
 // GA_ChannelledCantrip.h
 //
 // A cantrip held open by the input: a gout of flame, a sustained wind, a stream of
-// frost. Runs while the key is down and stops when it is released.
+// frost. Runs while the key is down, and stops when it is released OR when the duration
+// the roll bought runs out -- whichever comes first. Successes buy both how fierce it is
+// and how long it can be held.
 //
 // Three things separate it from the toggled kind:
 //
@@ -84,10 +86,40 @@ protected:
 		bool bReplicateEndAbility, bool bWasCancelled) override;
 
 	// ── Rooting ─────────────────────────────────────────────────────────────
+	//
+	// The flag, the timeout and the lock itself all live on UGA_Cantrip. This class sets
+	// their defaults in its constructor and decides only WHEN the root is taken.
 
-	/** Plant the caster for the duration. Restored to walking on release. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Channelled")
-	bool bLockMovementWhileChannelling = true;
+	/**
+	 * Not on activate: on channel open.
+	 *
+	 * Activation is the start of the WIND-UP, and the roll has not happened yet. Rooting
+	 * there plants the caster for a cantrip that may still fail, and leaves her standing
+	 * in a gesture that produced nothing. The root is taken in PostResolve instead, on
+	 * the frame the working actually opens.
+	 */
+	virtual bool ShouldTakeRootOnActivate() const override { return false; }
+
+	/**
+	 * The montage DOES start on activate, unlike the root.
+	 *
+	 * For a channel the hold is the wind-up, so the Begin section belongs to it. Waiting
+	 * for the roll meant the player pressed the key, watched nothing happen for as long
+	 * as they held it, and only then saw her brace -- every part of the cast reading late
+	 * by exactly the length of the hold.
+	 *
+	 * Rooting still waits, because a wind-up that may yet fail should not plant her.
+	 */
+	virtual bool ShouldStartMontageOnActivate() const override { return true; }
+
+	/**
+	 * The flame gathers during the wind-up rather than appearing lit.
+	 *
+	 * The effect-start cue fires inside the Begin section, and refusing to spawn until
+	 * the working had opened threw that cue away and left the whole presentation to
+	 * arrive at once, at full strength, after the roll.
+	 */
+	virtual bool CanSpawnSustainedEffect() const override { return true; }
 
 	// ── Clearance ───────────────────────────────────────────────────────────
 
@@ -119,9 +151,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Channelled")
 	FName IntensityCurveName = TEXT("EffectIntensity");
 
-	/** Niagara user parameter the intensity is written to. */
-	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Cantrip|Channelled")
-	FName IntensityParameter = TEXT("Intensity");
+	// IntensityParameter, IntensityAtOneSuccess and IntensityPerSuccess live on
+	// UGA_SustainedCantrip: a torch grows with the roll exactly as a stream does, and
+	// only the CURVE that shapes it over time is particular to a channel.
 
 	/** Seconds between intensity samples. */
 	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Cantrip|Channelled",
@@ -138,6 +170,34 @@ protected:
 	 *  past about 20% either way a looping cue starts sounding resampled. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Channelled")
 	FVector2D ChannelPitchRange = FVector2D(0.9f, 1.1f);
+
+	/**
+	 * How much of the roll's fierceness reaches the VOLUME, as an exponent.
+	 *
+	 * Not a multiplier, because hearing is logarithmic: roughly ten times the acoustic
+	 * power to sound twice as loud. At the default, a stream three times the size plays
+	 * about half again as loud rather than three times -- which is both what a fire
+	 * actually does and what keeps a cue mastered near full scale from clipping.
+	 *
+	 * Zero makes loudness ignore the roll entirely; one makes it track the flame
+	 * literally, which will be too much.
+	 */
+	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Cantrip|Channelled",
+		meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float LoudnessExponent = 0.35f;
+
+	/**
+	 * How much the roll's fierceness DROPS the pitch, as an exponent.
+	 *
+	 * Down, not up. A larger body of flame resonates lower -- a big blaze roars where a
+	 * small one hisses -- so a strong casting should deepen rather than sharpen. The
+	 * result is clamped afterwards, since this compounds with the curve's own ramp
+	 * through ChannelPitchRange and a loop pitched too far stops sounding deeper and
+	 * starts sounding resampled.
+	 */
+	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Cantrip|Channelled",
+		meta = (ClampMin = "0.0", ClampMax = "0.5"))
+	float PitchDropExponent = 0.12f;
 
 	/** Fires when a channel is refused for want of clearance, so Blueprint can play a
 	 *  failed-cast cue rather than leaving the player wondering why nothing happened. */
@@ -176,26 +236,34 @@ protected:
 		meta = (ClampMin = "0.0"))
 	float ChannelOpensAfterSeconds = 0.0f;
 
-	/** Seconds to wait for the animation's effect-start cue before giving up and
-	 *  spawning the effect regardless. */
-	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Cantrip|Channelled",
-		meta = (ClampMin = "0.0"))
-	float EffectStartTimeout = 1.0f;
-
 	/**
-	 * Seconds the caster stays planted after release, waiting for the recovery cue.
+	 * Seconds after the gesture begins before the flame gathers in her hands.
 	 *
-	 * Long enough to cover the End animation, and no longer: this doubles as the
-	 * deadline after which the character is unrooted whether the animation reported in
-	 * or not.
+	 * Measured from ACTIVATION, so it lands at a fixed point in the raise however long
+	 * the cast is held. Set it to the frame the intensity curve starts climbing and the
+	 * fire, the sound and the arms all come up together.
+	 *
+	 * The animation's effect-start cue pre-empts this if it arrives first, which is the
+	 * arrangement worth having: the cue moves with the clip when it is retimed, and this
+	 * is what happens when there is no cue, or when there is one that never fires.
 	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Channelled",
+		meta = (ClampMin = "0.0"))
+	float GatherDelay = 0.6f;
+
+	/** Seconds to wait for the animation's effect-start cue before giving up and
+	 *  spawning the effect regardless. Now only a backstop for the post-roll path;
+	 *  GatherDelay above is what normally decides when the flame appears. */
 	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Cantrip|Channelled",
 		meta = (ClampMin = "0.0"))
-	float RecoveryTimeout = 1.5f;
+	float EffectStartTimeout = 2.0f;
 
 private:
+	/** Start the looping cue and the intensity sampling. Called from ActivateAbility so
+	 *  the curve has the whole wind-up to ramp across. */
+	void StartChannelPresentation();
+
 	void SampleIntensity();
-	void SetMovementLocked(bool bLocked);
 	void HandleEffectStartEvent(const FGameplayEventData* Payload);
 	void ListenForEffectStart();
 	void StopListeningForEffectStart();
@@ -208,7 +276,6 @@ private:
 	FTimerHandle RecoveryHoldTimer;
 	FDelegateHandle EffectStartDelegate;
 	float CurrentIntensity = 1.0f;
-	bool bMovementLocked = false;
 
 	/**
 	 * The animation has already said the gesture landed.

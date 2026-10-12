@@ -1,0 +1,91 @@
+Art,Level,RowName,Cantrip,Role,SecondaryRole,BaseClass,Payload,Blueprint,Kind,Description
+Autumn,1,CreepingShadows,Creeping Shadows,Illusion,Control,UGA_IllusionCantrip,,GA_Autumn_CreepingShadows,Sustained,Bend and command nearby shadows to menace or conceal.
+Autumn,2,AutumnEyes,Autumn Eyes,Divination,,UGA_DivinationCantrip,,GA_Autumn_AutumnEyes,Sustained,"Perceive what is hidden, decayed, or failing in the target."
+Autumn,3,PoisonedApple,The Poisoned Apple,Damage,Debuff,UGA_DamageCantrip,,GA_Autumn_ThePoisonedApple,Instant,"Imbue food or drink with baleful, poisoning glamour."
+Autumn,4,TheWithering,The Withering,Debuff,Damage,UGA_DebuffCantrip,UCantripPayload_Damage,GA_Autumn_TheWithering,Sustained,Age and wither the target toward ruin.
+Autumn,5,Shivers,Shivers,Debuff,Control,UGA_DebuffCantrip,,GA_Autumn_Shivers,Sustained,Mark a target as a beacon for the restless dead.
+Chicanery,1,TrickOfTheLight,Trick of the Light,Illusion,,UGA_IllusionCantrip,,GA_Chicanery_TrickoftheLight,Sustained,Nudge perception so one thing is mistaken for another.
+Chicanery,2,VeiledEyes,Veiled Eyes,Illusion,,UGA_IllusionCantrip,,GA_Chicanery_VeiledEyes,Sustained,Make the subject overlooked and ignored.
+Chicanery,3,DreamLogic,Dream Logic,Control,Debuff,UGA_ControlCantrip,,GA_Chicanery_DreamLogic,Sustained,"Cloud minds with dreamlike, disjointed reasoning."
+Chicanery,4,VeiledMind,Veiled Mind,Debuff,Control,UGA_DebuffCantrip,,GA_Chicanery_VeiledMind,Sustained,Steal memories or hide knowledge from a mind.
+Chicanery,5,LostInTheMists,Lost in the Mists,Control,,UGA_ControlCantrip,,GA_Chicanery_LostintheMists,Sustained,Strand the target’s awareness deep in the Mists.
+Chronos,1,BackwardGlance,Backward Glance,Divination,,UGA_DivinationCantrip,,GA_Chronos_BackwardGlance,Sustained,Glimpse the recent past of a place or thing.
+Chronos,2,EffectAndCause,Effect and Cause,Control,Debuff,UGA_ControlCantrip,,GA_Chronos_EffectandCause,Sustained,Scatter the ordinary order of cause and effect.
+Chronos,3,SetInStone,Set in Stone,Control,,UGA_ControlCantrip,,GA_Chronos_SetinStone,Sustained,Halt the flow of time around the target.
+Chronos,4,DejaVu,Déjà Vu,Control,,UGA_ControlCantrip,,GA_Chronos_DejaVu,Sustained,Trap the target reliving the same moments.
+Chronos,5,TimeDilation,Time Dilation,Control,,UGA_ControlCantrip,,GA_Chronos_TimeDilation,Sustained,Push the target forward through time.
+Contract,1,DoneDeal,Done Deal,Binding,,UGA_BindingCantrip,,GA_Contract_DoneDeal,Instant,Seal a bargain the Dreaming itself enforces.
+Contract,2,LiarsBell,Liar’s Bell,Divination,Binding,UGA_DivinationCantrip,,GA_Contract_LiarsBell,Instant,Know at once when a sworn word is broken.
+Contract,3,Castigate,Castigate,Damage,Binding,UGA_DamageCantrip,,GA_Contract_Castigate,Instant,Call down punishment upon an oathbreaker.
+Contract,4,CasualContract,Casual Contract,Binding,,UGA_BindingCantrip,,GA_Contract_CasualContract,Instant,Bind even offhand agreements with faerie weight.
+Contract,5,SanctifiedWords,Sanctified Words,Buff,Binding,UGA_BuffCantrip,,GA_Contract_SanctifiedWords,Instant,Weave glamour boons into a formal contract.
+DragonsIre,1,BurningThew,Burning Thew,Buff,,UGA_BuffCantrip,,GA_DragonsIre_BurningThew,Sustained,Channel draconic might into feats of strength.
+DragonsIre,2,ConfoundingCoils,Confounding Coils,Protection,,UGA_ProtectionCantrip,,GA_DragonsIre_ConfoundingCoils,Sustained,Weave serpentine grace that turns aside blows.
+DragonsIre,3,Dragonscales,Dragonscales,Protection,,UGA_ProtectionCantrip,,GA_DragonsIre_DragonScales,Sustained,Harden hide or garb into scaled armour.
+DragonsIre,4,HollyStrike,Holly-Strike,Damage,,UGA_DamageCantrip,,GA_DragonsIre_HollyStrike,Instant,"Lash out with cracking, stinging force."
+DragonsIre,5,TrippingTheIre,Tripping the Ire,Damage,,UGA_DamageCantrip,,GA_DragonsIre_TrippingtheIre,Sustained,Unleash the dragon’s wrath on those who provoke it.
+Legerdemain,1,Ensnare,Ensnare,Control,,UGA_ControlCantrip,,GA_Legerdemain_Ensnare,Sustained,"Snag, trip, or tangle a target from afar."
+Legerdemain,2,Mooch,Mooch,Utility,,UGA_UtilityCantrip,,GA_Legerdemain_Mooch,Instant,Filch small things unseen into your hand.
+Legerdemain,3,Effigy,Effigy,Creation,Illusion,UGA_CreationCantrip,,GA_Legerdemain_Effigy,Summon,Conjure a glamour copy of a thing.
+Legerdemain,4,Gimmix,Gimmix,Utility,,UGA_UtilityCantrip,,GA_Legerdemain_Gimmix,Sustained,Move and manipulate objects at a distance.
+Legerdemain,5,SmokeAndMirrors,Smoke and Mirrors,Illusion,Creation,UGA_IllusionCantrip,,GA_Legerdemain_SmokeandMirrors,Sustained,Craft full illusions that walk and speak.
+Metamorphosis,1,SparrowsAndNightingales,Sparrows and Nightingales,Transformation,,UGA_TransformationCantrip,,GA_Metamorphosis_SparrowsandNightengales,Sustained,Work small cosmetic changes of face and form.
+Metamorphosis,2,WormsAndGiants,Worms and Giants,Transformation,,UGA_TransformationCantrip,,GA_Metamorphosis_WormsandGiants,Sustained,Shrink or enlarge the subject.
+Metamorphosis,3,Thousandskins,Thousandskins,Transformation,,UGA_TransformationCantrip,,GA_Metamorphosis_Thousandskins,Sustained,Take the shape of beasts.
+Metamorphosis,4,Beastskin,Beastskin,Transformation,,UGA_TransformationCantrip,,GA_Metamorphosis_Beastskin,Sustained,Borrow single bestial features in partial change.
+Metamorphosis,5,ChimericExultation,Chimeric Exultation,Transformation,,UGA_TransformationCantrip,,GA_Metamorphosis_ChimericExultation,Sustained,Transform into a wonder of living chimera.
+Naming,1,BetweenTheLines,Between the Lines,Divination,,UGA_DivinationCantrip,,GA_Naming_BetweentheLines,Instant,Read the truths written beneath surfaces.
+Naming,2,Nickname,Nickname,Binding,,UGA_BindingCantrip,,GA_Naming_Nickname,Sustained,Bind a working name onto a subject.
+Naming,3,Saining,Saining,Divination,,UGA_DivinationCantrip,,GA_Naming_Saining,Instant,Discern the True Name of the subject.
+Naming,4,RunicImprint,Runic Imprint,Buff,Binding,UGA_BuffCantrip,,GA_Naming_RunicImprint,Sustained,Inscribe runes of power onto things.
+Naming,5,Reweaving,Reweaving,Transformation,Binding,UGA_TransformationCantrip,,GA_Naming_Reweaving,Instant,Rewrite a True Name and remake its bearer.
+Oneiromancy,1,DreamWalk,Dream Walk,Mobility,Divination,UGA_MobilityCantrip,,GA_Oneiromancy_DreamWalk,Instant,Enter and walk the dreams of a sleeper.
+Oneiromancy,2,DreamCraft,Dream Craft,Utility,Illusion,UGA_UtilityCantrip,,GA_Oneiromancy_DreamCraft,Sustained,Shape a dream’s content and tone.
+Oneiromancy,3,DreamPortal,Dream Portal,Mobility,,UGA_MobilityCantrip,,GA_Oneiromancy_DreamPortal,Sustained,Step between distant places through dream.
+Oneiromancy,4,Manifest,Manifest,Creation,,UGA_CreationCantrip,,GA_Oneiromancy_Manifest,Summon,Draw dream-stuff into the waking world.
+Oneiromancy,5,DreamPuppet,Dream Puppet,Control,,UGA_ControlCantrip,,GA_Oneiromancy_DreamPuppet,Instant,Rule a dreamer through their dreams.
+Primal,1,WillowWhisper,Willow Whisper,Divination,Utility,UGA_DivinationCantrip,,GA_Primal_WillowWhisper,Sustained,Speak with plants and hear their answers.
+Primal,2,EldritchPrime,Eldritch Prime,Creation,Damage,UGA_CreationCantrip,UCantripPayload_Damage,GA_Primal_EldritchPrime,Summon,Conjure raw manifestations of the elements.
+Primal,3,Oakenshield,Oakenshield,Protection,,UGA_ProtectionCantrip,,GA_Primal_Oakenshield,Sustained,Harden the subject like living stone or oak.
+Primal,4,ElderForm,Elder-Form,Transformation,Buff,UGA_TransformationCantrip,,GA_Primal_ElderForm,Sustained,Assume an elemental form of earth or wood.
+Primal,5,DanceOfTheFiveKings,Dance of the Five Kings,Utility,Damage,UGA_UtilityCantrip,UCantripPayload_Damage,GA_Primal_DanceoftheFiveKings,Instant,Command the five elements as one.
+Pyretics,1,Kindle,Kindle,Damage,Utility,UGA_DamageCantrip,,GA_Pyretics_Kindle,Sustained,Heat and ignite small things at a touch.
+Pyretics,2,Illuminate,Illuminate,Utility,,UGA_UtilityCantrip,,GA_Pyretics_Illuminate,Sustained,Hold cold faerie light kindled in the palm.
+Pyretics,3,Purify,Purify,Healing,Utility,UGA_HealingCantrip,,GA_Pyretics_Purify,Instant,Burn away impurity and contamination.
+Pyretics,4,Engulf,Engulf,Damage,,UGA_DamageCantrip,,GA_Pyretics_Engulf,Sustained,Set the target ablaze.
+Pyretics,5,PhoenixSong,Phoenix Song,Damage,Healing,UGA_DamageCantrip,,GA_Pyretics_PhoenixSong,Sustained,Destroy in flame so that renewal may rise.
+Skycraft,1,HowlingGale,Howling Gale,Utility,Control,UGA_UtilityCantrip,,GA_Skycraft_HowlingGale,Sustained,Call and command the wind.
+Skycraft,2,ElectricGremlins,Electric Gremlins,Debuff,Utility,UGA_DebuffCantrip,,GA_Skycraft_ElectricGremlins,Summon,Foul or command electricity and machines.
+Skycraft,3,HurricaneSpeed,Hurricane Speed,Mobility,,UGA_MobilityCantrip,,GA_Skycraft_HurricaneSpeed,Sustained,Move with the impossible swiftness of the wind.
+Skycraft,4,StormShroud,Storm Shroud,Protection,Damage,UGA_ProtectionCantrip,UCantripPayload_Damage,GA_Skycraft_StormShroud,Sustained,Wrap the subject in crackling storm.
+Skycraft,5,LordOfLevin,Lord of Levin,Damage,,UGA_DamageCantrip,,GA_Skycraft_LordofLevin,Instant,Call down lightning from the heavens.
+Soothsay,1,Omen,Omen,Divination,,UGA_DivinationCantrip,,GA_Soothsay_Omen,Instant,Read a subject’s immediate thread of fate.
+Soothsay,2,SeersWisp,Seer’s Wisp,Divination,Creation,UGA_DivinationCantrip,,GA_Soothsay_SeersWisp,Summon,Conjure a guiding light toward what is sought.
+Soothsay,3,Tattletale,Tattletale,Divination,,UGA_DivinationCantrip,,GA_Soothsay_Tattletale,Sustained,Scry distant scenes through a linked thing.
+Soothsay,4,Augury,Augury,Divination,,UGA_DivinationCantrip,,GA_Soothsay_Augury,Instant,Put a question to fate and hear its answer.
+Soothsay,5,FateFire,Fate Fire,Buff,Debuff,UGA_BuffCantrip,,GA_Soothsay_FateFire,Sustained,Bless or curse a thread of Dán.
+Sovereign,1,Protocol,Protocol,Control,,UGA_ControlCantrip,,GA_Sovereign_Protocol,Sustained,Compel courtly propriety and due respect.
+Sovereign,2,Grandeur,Grandeur,Buff,Control,UGA_BuffCantrip,,GA_Sovereign_Grandeur,Sustained,Awe all who behold the caster.
+Sovereign,3,GuestList,Guest List,Protection,,UGA_ProtectionCantrip,,GA_Sovereign_GuestList,Sustained,Bar entry and use to the uninvited.
+Sovereign,4,Dictum,Dictum,Control,,UGA_ControlCantrip,,GA_Sovereign_Dictum,Instant,Command obedience by right of title.
+Sovereign,5,Geas,Geas,Binding,Control,UGA_BindingCantrip,,GA_Sovereign_Geas,Sustained,Lay a quest or ban upon a target.
+Spring,1,Awaken,Awaken,Utility,,UGA_UtilityCantrip,,GA_Spring_Awaken,Instant,Rouse seeds and sleeping life to sudden growth.
+Spring,2,VerdantReclamation,Verdant Reclamation,Utility,Control,UGA_UtilityCantrip,,GA_Spring_VerdantReclamation,Sustained,Let growing things reclaim the made world.
+Spring,3,WellOfLife,Well of Life,Healing,,UGA_HealingCantrip,,GA_Spring_WellofLife,Sustained,Draw healing from the waters of life.
+Spring,4,FaerieRing,Faerie Ring,Protection,Mobility,UGA_ProtectionCantrip,,GA_Spring_FaerieRing,Instant,Raise a ring of protection and passage.
+Spring,5,Renewal,Renewal,Healing,,UGA_HealingCantrip,,GA_Spring_Renewal,Instant,Resurrect life as spring thaws the world.
+Summer,1,FlickerFlies,Flicker-Flies,Creation,Utility,UGA_CreationCantrip,,GA_Summer_FlickerFlies,Summon,Conjure dancing summer lights.
+Summer,2,Enkindle,Enkindle,Control,Debuff,UGA_ControlCantrip,,GA_Summer_Enkindle,Sustained,Kindle chosen passions in a heart.
+Summer,3,Aphrodisia,Aphrodisia,Control,,UGA_ControlCantrip,,GA_Summer_Aphrodisia,Sustained,Inflame desire and attraction.
+Summer,4,VestasBlessing,Vesta’s Blessing,Protection,,UGA_ProtectionCantrip,,GA_Summer_VestasBlessing,Instant,Sanctify hearth and home against harm.
+Summer,5,BeltaneBlade,The Beltane Blade,Healing,Damage,UGA_HealingCantrip,UCantripPayload_Damage,GA_Summer_TheBeltaneBlade,Sustained,Purge taint and corruption with summer’s blade.
+Wayfare,1,Hopscotch,Hopscotch,Mobility,,UGA_MobilityCantrip,,GA_Wayfare_Hopscotch,Instant,Leap prodigious heights and distances.
+Wayfare,2,Quicksilver,Quicksilver,Mobility,,UGA_MobilityCantrip,,GA_Wayfare_Quicksilver,Sustained,Move as a blur of impossible speed.
+Wayfare,3,PortalPassage,Portal Passage,Mobility,,UGA_MobilityCantrip,,GA_Wayfare_PortalPassage,Sustained,Open doors where none exist.
+Wayfare,4,WindRunner,Wind Runner,Mobility,,UGA_MobilityCantrip,,GA_Wayfare_WindRunner,Sustained,Ride the air in true flight.
+Wayfare,5,FlickerFlash,Flicker Flash,Mobility,,UGA_MobilityCantrip,,GA_Wayfare_FlickerFlash,Instant,Step instantly from place to place.
+Winter,1,Chill,Chill,Damage,Debuff,UGA_DamageCantrip,,GA_Winter_Chill,Sustained,Leach the warmth from the world nearby.
+Winter,2,HardenedHeart,Hardened Heart,Buff,Debuff,UGA_BuffCantrip,,GA_Winter_HardenedHeart,Sustained,Numb a heart against feeling and mercy.
+Winter,3,TerrorOfTheLongNight,Terror of the Long Night,Control,,UGA_ControlCantrip,,GA_Winter_TerroroftheLongNight,Sustained,Instill the deep fear of endless winter dark.
+Winter,4,Sculpt,Sculpt,Creation,,UGA_CreationCantrip,,GA_Winter_Sculpt,Sustained,Conjure ice and shape it at will.
+Winter,5,Stasis,Stasis,Control,,UGA_ControlCantrip,,GA_Winter_Stasis,Sustained,Seal the target in frost outside time.

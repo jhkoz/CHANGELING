@@ -5,7 +5,7 @@ so it follows the channels at any elevation (decouples riverbed from absolute Z)
 Landscape: origin (-100800,-100800), 100800 uu across; center (-50400,-50400)."""
 import os, json, numpy as np
 from PIL import Image
-T = r"G:\personal_projects\CHANGELING\Tools"
+T = os.path.dirname(os.path.abspath(__file__))
 RES=1024; EXTENT=100800.0; ORIGIN=-100800.0; CX=CY=-50400.0
 geom=json.load(open(os.path.join(T,"water_geom.json")))
 ax=ORIGIN+(np.arange(RES)+0.5)/RES*EXTENT

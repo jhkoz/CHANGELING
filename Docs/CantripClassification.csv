@@ -1,0 +1,91 @@
+Art,Level,RowName,Cantrip,Kind,BaseClass,Evidence,Duration,Confidence
+Autumn,1,CreepingShadows,Creeping Shadows,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Autumn,2,AutumnEyes,Autumn Eyes,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Autumn,3,PoisonedApple,The Poisoned Apple,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Autumn,4,TheWithering,The Withering,Sustained,UGA_SustainedCantrip,duration table 6/6,The withering lasts for the caster’s Glamour in turns. / The withering lasts f,High
+Autumn,5,Shivers,Shivers,Sustained,UGA_SustainedCantrip,explicit duration,The haunting lasts for a number of days equal to the suc- cesses ro,High
+Chicanery,1,TrickOfTheLight,Trick of the Light,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Chicanery,2,VeiledEyes,Veiled Eyes,Sustained,UGA_SustainedCantrip,duration table 5/5,One turn / One minute / One hour,High
+Chicanery,3,DreamLogic,Dream Logic,Sustained,UGA_SustainedCantrip,duration table 5/5,One turn / One minute / One hour,High
+Chicanery,4,VeiledMind,Veiled Mind,Sustained,UGA_SustainedCantrip,duration table 5/5,One hour / One scene / One day,High
+Chicanery,5,LostInTheMists,Lost in the Mists,Sustained,UGA_SustainedCantrip,duration table 5/5,One hour / One scene / One day,High
+Chronos,1,BackwardGlance,Backward Glance,Sustained,UGA_SustainedCantrip,duration table 5/5,Up to one hour / Up to one day / Up to one week,High
+Chronos,2,EffectAndCause,Effect and Cause,Sustained,UGA_SustainedCantrip,duration table 5/5,One turn / One minute / One hour,High
+Chronos,3,SetInStone,Set in Stone,Sustained,UGA_SustainedCantrip,duration table 5/5,One day / One week / One month,High
+Chronos,4,DejaVu,Déjà Vu,Sustained,UGA_SustainedCantrip,explicit duration,–3 to the difficulty of all rolls for a number of turns equal to the number of successes f,High
+Chronos,5,TimeDilation,Time Dilation,Sustained,UGA_SustainedCantrip,duration table 4/5,Up to one week / Up to one month / Up to one year,High
+Contract,1,DoneDeal,Done Deal,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Contract,2,LiarsBell,Liar’s Bell,Instant,UGA_InstantCantrip,permanent,,High
+Contract,3,Castigate,Castigate,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Contract,4,CasualContract,Casual Contract,Instant,UGA_InstantCantrip,permanent,,High
+Contract,5,SanctifiedWords,Sanctified Words,Instant,UGA_InstantCantrip,effect table 0/3,,Medium
+DragonsIre,1,BurningThew,Burning Thew,Sustained,UGA_SustainedCantrip,explicit duration,"successes are allocated to duration, this cantrip lasts for only a single round",High
+DragonsIre,2,ConfoundingCoils,Confounding Coils,Sustained,UGA_SustainedCantrip,explicit duration,This cantrip lasts for one round per success rolled,High
+DragonsIre,3,Dragonscales,Dragonscales,Sustained,UGA_SustainedCantrip,explicit duration,This cantrip lasts for one round per success,High
+DragonsIre,4,HollyStrike,Holly-Strike,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+DragonsIre,5,TrippingTheIre,Tripping the Ire,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Legerdemain,1,Ensnare,Ensnare,Sustained,UGA_SustainedCantrip,turns hindered,The number of successes determines the number of turns the target remains hindered,High (manual)
+Legerdemain,2,Mooch,Mooch,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Legerdemain,3,Effigy,Effigy,Summon,UGA_SummonCantrip,creates a duplicate,One turn / One minute / One hour,High (manual)
+Legerdemain,4,Gimmix,Gimmix,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Legerdemain,5,SmokeAndMirrors,Smoke and Mirrors,Sustained,UGA_SustainedCantrip,duration table 5/5,One minute / One hour / One scene,High
+Metamorphosis,1,SparrowsAndNightingales,Sparrows and Nightingales,Sustained,UGA_SustainedCantrip,duration table 5/5,One scene / One day / Changeling’s Glamour in days,High
+Metamorphosis,2,WormsAndGiants,Worms and Giants,Sustained,UGA_SustainedCantrip,explicit duration,"the severity of growth or shrinking, this cantrip lasts for only a scene, although Unleash",High
+Metamorphosis,3,Thousandskins,Thousandskins,Sustained,UGA_SustainedCantrip,explicit duration,eaks down like so: 0 successes The transformation lasts for the caster’s Glamour in turns,High
+Metamorphosis,4,Beastskin,Beastskin,Sustained,UGA_SustainedCantrip,duration table 6/6,The caster’s Glamour in turns. / One scene. / One day.,High
+Metamorphosis,5,ChimericExultation,Chimeric Exultation,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Naming,1,BetweenTheLines,Between the Lines,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Naming,2,Nickname,Nickname,Sustained,UGA_SustainedCantrip,duration table 5/5,One scene / One day / One week,High
+Naming,3,Saining,Saining,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Naming,4,RunicImprint,Runic Imprint,Sustained,UGA_SustainedCantrip,duration table 5/5,One minute / One scene / One day,High
+Naming,5,Reweaving,Reweaving,Instant,UGA_InstantCantrip,"permanent rewrite, effect table not duration",,High (manual)
+Oneiromancy,1,DreamWalk,Dream Walk,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Oneiromancy,2,DreamCraft,Dream Craft,Sustained,UGA_SustainedCantrip,explicit duration,The effects of the trigger last for one day per each success rolled when castin,High
+Oneiromancy,3,DreamPortal,Dream Portal,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Oneiromancy,4,Manifest,Manifest,Summon,UGA_SummonCantrip,brings a dream-thing into the waking world,,High (manual)
+Oneiromancy,5,DreamPuppet,Dream Puppet,Instant,UGA_InstantCantrip,effect table 0/5,,Medium
+Primal,1,WillowWhisper,Willow Whisper,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Primal,2,EldritchPrime,Eldritch Prime,Summon,UGA_SummonCantrip,conjures elemental matter,,High (manual)
+Primal,3,Oakenshield,Oakenshield,Sustained,UGA_SustainedCantrip,explicit duration,"t one temporary extra Bruised health level, which lasts until destroyed or until the end o",High
+Primal,4,ElderForm,Elder-Form,Sustained,UGA_SustainedCantrip,duration table 4/4,Changeling’s Glamour in turns. / Changeling’s Glamour in minutes. / Five minut,High
+Primal,5,DanceOfTheFiveKings,Dance of the Five Kings,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Pyretics,1,Kindle,Kindle,Sustained,UGA_SustainedCantrip,turns overheated,,High (manual)
+Pyretics,2,Illuminate,Illuminate,Sustained,UGA_SustainedCantrip,explicit duration,"The effects of Illuminate last for one scene, but may be ended earlier by the",High
+Pyretics,3,Purify,Purify,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Pyretics,4,Engulf,Engulf,Sustained,UGA_ProjectileCantrip,burns for a duration,Each success represents the number of turns the target of the cantrip burns or is surro,High (manual)
+Pyretics,5,PhoenixSong,Phoenix Song,Sustained,UGA_SustainedCantrip,duration table 5/5,Burns for one day and then returns / Burns for one scene and then returns / Bu,High
+Skycraft,1,HowlingGale,Howling Gale,Sustained,UGA_SustainedCantrip,explicit duration,Such winds last for (Glamour) minutes,High
+Skycraft,2,ElectricGremlins,Electric Gremlins,Summon,UGA_SummonCantrip,creates gremlins that persist,The gremlins lurk about for one scene. / The gremlins plague the target for on,High (manual)
+Skycraft,3,HurricaneSpeed,Hurricane Speed,Sustained,UGA_SustainedCantrip,explicit duration,This cantrip lasts for the changeling’s Glamour in rounds,High
+Skycraft,4,StormShroud,Storm Shroud,Sustained,UGA_SustainedCantrip,explicit duration,Storm Shroud lasts for one round per success,High
+Skycraft,5,LordOfLevin,Lord of Levin,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Soothsay,1,Omen,Omen,Instant,UGA_InstantCantrip,effect table 0/5,,Medium
+Soothsay,2,SeersWisp,Seer’s Wisp,Summon,UGA_SummonCantrip,creates a wisp,"This cantrip only lasts for one hour per dot of the seer’s Glamour, and",High (manual)
+Soothsay,3,Tattletale,Tattletale,Sustained,UGA_SustainedCantrip,explicit duration,Dedication as a focus lasts for one day per success rolled,High
+Soothsay,4,Augury,Augury,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Soothsay,5,FateFire,Fate Fire,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Sovereign,1,Protocol,Protocol,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Sovereign,2,Grandeur,Grandeur,Sustained,UGA_SustainedCantrip,explicit duration,"Grandeur lasts for a scene, unless someone humiliates or bests",High
+Sovereign,3,GuestList,Guest List,Sustained,UGA_SustainedCantrip,duration table 5/5,One hour / One scene / One day,High
+Sovereign,4,Dictum,Dictum,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Sovereign,5,Geas,Geas,Sustained,UGA_SustainedCantrip,remains in place for the duration,,High (manual)
+Spring,1,Awaken,Awaken,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Spring,2,VerdantReclamation,Verdant Reclamation,Sustained,UGA_SustainedCantrip,explicit duration,"The foliage lasts for one scene, after which they wither and grad",High
+Spring,3,WellOfLife,Well of Life,Sustained,UGA_SustainedCantrip,duration table 5/5,One minute / One hour / One scene,High
+Spring,4,FaerieRing,Faerie Ring,Instant,UGA_InstantCantrip,effect table 0/5,,Medium
+Spring,5,Renewal,Renewal,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Summer,1,FlickerFlies,Flicker-Flies,Summon,UGA_SummonCantrip,conjures motes of light,,High (manual)
+Summer,2,Enkindle,Enkindle,Sustained,UGA_SustainedCantrip,explicit duration,Enkindle’s effects last for one minute per success when used on living,High
+Summer,3,Aphrodisia,Aphrodisia,Sustained,UGA_SustainedCantrip,one scene (text split by page header),,High (manual)
+Summer,4,VestasBlessing,Vesta’s Blessing,Instant,UGA_InstantCantrip,effect table 0/5,,Medium
+Summer,5,BeltaneBlade,The Beltane Blade,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Wayfare,1,Hopscotch,Hopscotch,Instant,UGA_InstantCantrip,effect table 0/4,,Medium
+Wayfare,2,Quicksilver,Quicksilver,Sustained,UGA_SustainedCantrip,no duration in C20 -- my read,,Review
+Wayfare,3,PortalPassage,Portal Passage,Sustained,UGA_SustainedCantrip,explicit duration,The door created persists for one minute per success,High
+Wayfare,4,WindRunner,Wind Runner,Sustained,UGA_SustainedCantrip,duration table 4/4,Changeling’s Glamour in turns. / Changeling’s Glamour in minutes. / Five minut,High
+Wayfare,5,FlickerFlash,Flicker Flash,Instant,UGA_InstantCantrip,no duration in C20 -- my read,,Review
+Winter,1,Chill,Chill,Sustained,UGA_SustainedCantrip,explicit duration,The number of successes determines the number of turns the cold persists,High
+Winter,2,HardenedHeart,Hardened Heart,Sustained,UGA_SustainedCantrip,duration table 5/5,One scene / One minute / One hour,High
+Winter,3,TerrorOfTheLongNight,Terror of the Long Night,Sustained,UGA_SustainedCantrip,explicit duration,The cantrip lasts for the current scene,High
+Winter,4,Sculpt,Sculpt,Sustained,UGA_SustainedCantrip,duration table 5/5,One turn / One minute / One hour,High
+Winter,5,Stasis,Stasis,Sustained,UGA_SustainedCantrip,duration table 5/5,One scene / One day / One week,High

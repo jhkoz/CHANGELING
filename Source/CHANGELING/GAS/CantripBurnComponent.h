@@ -60,6 +60,19 @@ class CHANGELING_API UCantripBurnComponent : public UActorComponent,
 public:
 	UCantripBurnComponent();
 
+	/**
+	 * Hands this component's decal settings to the shared subsystem immediately.
+	 *
+	 * The subsystem used to be configured lazily, the first time THIS component needed
+	 * it -- which only happens on the flamethrower's particle-data path. Anything else
+	 * that paints marks, an exploding fireball above all, reached a subsystem that had
+	 * never been told what a decal was and silently painted nothing. It worked only if
+	 * you happened to use the flamethrower first in that session, which is the worst
+	 * kind of bug: correct settings, plausible logs, and behaviour that depends on the
+	 * order you tried things in.
+	 */
+	virtual void BeginPlay() override;
+
 	/** Niagara calls this once a tick with every particle that collided. */
 	virtual void ReceiveParticleData_Implementation(const TArray<FBasicParticleData>& Data,
 		UNiagaraSystem* NiagaraSystem, const FVector& SimulationPositionOffset) override;
@@ -189,15 +202,15 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Cantrip|Burn|Debug")
 	bool bVerboseLogging = true;
 
+public:
+	/** The world's shared mark population, configured from this component on first use. */
+	class UCantripBurnSubsystem* GetSharedBurn();
+
 private:
 	void HandleHit(const FBasicParticleData& Particle);
 	const FCantripBurnSurface& SurfaceFor(const FHitResult& Hit);
-	AFireDecalActor* SpawnDecal(const FHitResult& Hit, bool bFlammable);
-	AFireDecalActor* RecycleColdestDecal();
-	AFireDecalActor* FindNearbyDecal(const FVector& Point) const;
 	void FlushStats();
-
-	UPROPERTY() TArray<TObjectPtr<AFireDecalActor>> LiveDecals;
+	int32 SharedLiveCount() const;
 
 	FVector FireOrigin = FVector::ZeroVector;
 

@@ -31,11 +31,18 @@ namespace ChangelingTags
 	UE_DEFINE_GAMEPLAY_TAG(Cantrip_Manifestation_Chimerical, "Cantrip.Manifestation.Chimerical");
 	UE_DEFINE_GAMEPLAY_TAG(Cantrip_Manifestation_Wyrd, "Cantrip.Manifestation.Wyrd");
 	UE_DEFINE_GAMEPLAY_TAG(Cantrip_State_Casting, "Cantrip.State.Casting");
+	UE_DEFINE_GAMEPLAY_TAG(Cantrip_State_Held, "Cantrip.State.Held");
 	UE_DEFINE_GAMEPLAY_TAG(Cantrip_State_Channelling, "Cantrip.State.Channelling");
 	UE_DEFINE_GAMEPLAY_TAG(Cantrip_Event_EffectStart, "Cantrip.Event.EffectStart");
 	UE_DEFINE_GAMEPLAY_TAG(Cantrip_Event_Recovered, "Cantrip.Event.Recovered");
+	UE_DEFINE_GAMEPLAY_TAG(Cantrip_Event_Release, "Cantrip.Event.Release");
 	UE_DEFINE_GAMEPLAY_TAG(Cantrip_State_Tainted, "Cantrip.State.Tainted");
 	UE_DEFINE_GAMEPLAY_TAG(Cantrip_Data_GlamourCost, "Cantrip.Data.GlamourCost");
+	UE_DEFINE_GAMEPLAY_TAG(Cantrip_Data_BlastMagnitude, "Cantrip.Data.BlastMagnitude");
+	UE_DEFINE_GAMEPLAY_TAG(Cantrip_Data_Magnitude, "Cantrip.Data.Magnitude");
+	UE_DEFINE_GAMEPLAY_TAG(Cantrip_Data_Secondary, "Cantrip.Data.Secondary");
+	UE_DEFINE_GAMEPLAY_TAG(State_JumpHeld, "State.JumpHeld");
+	UE_DEFINE_GAMEPLAY_TAG(State_Sprinting, "State.Sprinting");
 	UE_DEFINE_GAMEPLAY_TAG(State_Enchanted, "State.Enchanted");
 	UE_DEFINE_GAMEPLAY_TAG(State_Banality_Heavy, "State.Banality.Heavy");
 }

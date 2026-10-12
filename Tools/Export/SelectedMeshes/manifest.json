@@ -1,0 +1,18 @@
+{
+  "BP_Boggan_Childling_Male": [
+    {
+      "component": "CharacterMesh0",
+      "mesh": "SKM_MHC_Boggan_Male_Childling_BodyMesh",
+      "asset": "/Game/_Custom/Characters/Kith/Boggan/MHC_Boggan_Male_Childling/Body/SKM_MHC_Boggan_Male_Childling_BodyMesh.SKM_MHC_Boggan_Male_Childling_BodyMesh",
+      "file": "SKM_MHC_Boggan_Male_Childling_BodyMesh.fbx",
+      "is_face": false
+    },
+    {
+      "component": "FaceMesh",
+      "mesh": "SKM_MHC_Boggan_Male_Childling_FaceMesh",
+      "asset": "/Game/_Custom/Characters/Kith/Boggan/MHC_Boggan_Male_Childling/Face/SKM_MHC_Boggan_Male_Childling_FaceMesh.SKM_MHC_Boggan_Male_Childling_FaceMesh",
+      "file": "SKM_MHC_Boggan_Male_Childling_FaceMesh.fbx",
+      "is_face": true
+    }
+  ]
+}

@@ -127,7 +127,14 @@ public:
 		meta = (ClampMin = "0.5", ClampMax = "20.0"))
 	float BlendSpeed = 4.0f;
 
-	/** Uncheck to compute the multiplier but leave MaxWalkSpeed alone (drive it yourself). */
+	/**
+	 * Uncheck to compute the multiplier but leave MaxWalkSpeed alone (drive it yourself).
+	 *
+	 * ACHANGELINGCharacter forces this OFF at BeginPlay and reads GetSpeedMultiplier()
+	 * instead, because a speed cantrip made this component the second thing writing that
+	 * field and the second writer always wins by accident. On a character that is not one
+	 * of ours the checkbox still means what it says.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Water Movement|Speed")
 	bool bApplyToMovement = true;
 
@@ -273,6 +280,11 @@ public:
 	/**
 	 * Base speed the multiplier is applied to. Call this from sprint / walk logic
 	 * instead of setting MaxWalkSpeed directly, or the two will fight each other.
+	 *
+	 * On ACHANGELINGCharacter this is no longer the place: that class owns the base
+	 * speeds itself and composes them with GetSpeedMultiplier() every tick, so use
+	 * ACHANGELINGCharacter::SetBaseSpeeds. This stays for anything else carrying the
+	 * component.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Water Movement")
 	void SetBaseWalkSpeed(float NewBaseSpeed);

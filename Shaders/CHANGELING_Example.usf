@@ -1,0 +1,33 @@
+// CHANGELING — starter custom shader.
+//
+// This Shaders/ folder is mapped to the "/Project/" virtual shader path in
+// ../shadertoolsconfig.json, so HLSL Tools (Visual Studio) resolves the UE
+// includes below. Try F12 / Go-To-Definition on Common.ush to confirm
+// IntelliSense is wired up.
+//
+// NOTE: this gives editor IntelliSense only. To actually compile a .usf in
+// UE you must register this folder in C++ from a module's StartupModule:
+//
+//   AddShaderSourceDirectoryMapping(
+//       TEXT("/Project"),
+//       FPaths::Combine(FPaths::ProjectDir(), TEXT("Shaders")));
+//
+// ...then #include "/Project/CHANGELING_Example.usf" from a global shader or
+// a material Custom node.
+
+#include "/Engine/Public/Platform.ush"
+#include "/Engine/Private/Common.ush"
+
+// ---- example helpers (callable from a material Custom node) ----
+
+// Rec. 709 luminance.
+float Luma(float3 Color)
+{
+    return dot(Color, float3(0.2126, 0.7152, 0.0722));
+}
+
+// Soft height blend: 0 below (Threshold - Softness), 1 at/above Threshold.
+float HeightBlend(float Height, float Threshold, float Softness)
+{
+    return smoothstep(Threshold - max(Softness, 1e-4), Threshold, Height);
+}

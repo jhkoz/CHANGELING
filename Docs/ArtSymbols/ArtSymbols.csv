@@ -1,0 +1,25 @@
+Kind,Name,File,C20Page,Iconography
+Art,Autumn,T_ArtSymbol_Autumn.png,198,"autumn tree, red foliage"
+Art,Chicanery,T_ArtSymbol_Chicanery.png,200,open eye
+Art,Chronos,T_ArtSymbol_Chronos.png,202,clock face
+Art,Contract,T_ArtSymbol_Contract.png,203,scroll and quill
+Art,DragonsIre,T_ArtSymbol_DragonsIre.png,206,red dragon
+Art,Legerdemain,T_ArtSymbol_Legerdemain.png,208,open palm
+Art,Metamorphosis,T_ArtSymbol_Metamorphosis.png,209,crowned frog
+Art,Naming,T_ArtSymbol_Naming.png,212,rune
+Art,Oneiromancy,T_ArtSymbol_Oneiromancy.png,213,closed/sleeping eye
+Art,Primal,T_ArtSymbol_Primal.png,217,clenched fist
+Art,Pyretics,T_ArtSymbol_Pyretics.png,218,flame
+Art,Skycraft,T_ArtSymbol_Skycraft.png,219,winged lightning bolt
+Art,Soothsay,T_ArtSymbol_Soothsay.png,221,crescent moon
+Art,Sovereign,T_ArtSymbol_Sovereign.png,224,winged crown
+Art,Spring,T_ArtSymbol_Spring.png,226,blossoming tree
+Art,Summer,T_ArtSymbol_Summer.png,227,green leafed tree
+Art,Wayfare,T_ArtSymbol_Wayfare.png,228,compass star
+Art,Winter,T_ArtSymbol_Winter.png,231,bare tree
+Realm,Actor,T_RealmSymbol_Actor.png,233,flames
+Realm,Fae,T_RealmSymbol_Fae.png,233,butterfly
+Realm,Nature,T_RealmSymbol_Nature.png,234,rose
+Realm,Prop,T_RealmSymbol_Prop.png,235,cog
+Realm,Scene,T_RealmSymbol_Scene.png,235,radiant sun
+Realm,Time,T_RealmSymbol_Time.png,236,hourglass

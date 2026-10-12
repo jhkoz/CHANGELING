@@ -107,6 +107,39 @@ public:
 	FGameplayAttributeData WillpowerMax;
 	ATTRIBUTE_ACCESSORS(UChangelingAttributeSet, WillpowerMax)
 
+	/**
+	 * Wind. Spent running, climbing, fighting; recovers on its own.
+	 *
+	 * NOT the Stamina attribute above, and the clumsier name is the price of that. The
+	 * nine traits are ratings of what she IS -- a Stamina of 3 describes a constitution
+	 * and never moves during play. This is a POOL, drained and refilled minute by minute.
+	 * Two attributes in one set cannot share a name, and of the two the book's trait has
+	 * the better claim to it.
+	 *
+	 * Its maximum IS derived from that trait, at StaminaPointsPerDot each -- so the two
+	 * are the same fact at two scales rather than two numbers to keep in step.
+	 */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_StaminaPool, Category = "Attributes|Pools")
+	FGameplayAttributeData StaminaPool;
+	ATTRIBUTE_ACCESSORS(UChangelingAttributeSet, StaminaPool)
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_StaminaPoolMax, Category = "Attributes|Pools")
+	FGameplayAttributeData StaminaPoolMax;
+	ATTRIBUTE_ACCESSORS(UChangelingAttributeSet, StaminaPoolMax)
+
+	/**
+	 * Points of wind per dot of the Stamina TRAIT.
+	 *
+	 * The link the two names imply and did not have: a Stamina of 5 is a hundred points
+	 * of sprint, a Stamina of 1 is twenty. Derived rather than authored, so raising the
+	 * trait raises the pool and nobody has to remember to raise both.
+	 *
+	 * Recomputed in PostGameplayEffectExecute whenever Stamina moves, which covers every
+	 * route that matters -- the starting attributes effect, advancement, a Treasure. A
+	 * direct SetStamina in C++ bypasses it, so use an effect.
+	 */
+	static constexpr float StaminaPointsPerDot = 20.0f;
+
 	/** The Unseelie counterweight to Glamour, fed by fear and cruelty. */
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Nightmare, Category = "Attributes|Pools")
 	FGameplayAttributeData Nightmare;
@@ -148,6 +181,8 @@ protected:
 	UFUNCTION() void OnRep_Banality(const FGameplayAttributeData& Old);
 	UFUNCTION() void OnRep_Willpower(const FGameplayAttributeData& Old);
 	UFUNCTION() void OnRep_WillpowerMax(const FGameplayAttributeData& Old);
+	UFUNCTION() void OnRep_StaminaPool(const FGameplayAttributeData& Old);
+	UFUNCTION() void OnRep_StaminaPoolMax(const FGameplayAttributeData& Old);
 	UFUNCTION() void OnRep_Nightmare(const FGameplayAttributeData& Old);
 	UFUNCTION() void OnRep_Health(const FGameplayAttributeData& Old);
 	UFUNCTION() void OnRep_HealthMax(const FGameplayAttributeData& Old);

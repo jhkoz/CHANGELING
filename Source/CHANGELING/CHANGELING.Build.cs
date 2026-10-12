@@ -15,10 +15,21 @@ public class CHANGELING : ModuleRules
 			"InputCore",
 			"EnhancedInput",
 			"AIModule",
+			"NavigationSystem",
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
 			"Slate",
+			"SlateCore",
+			// Runtime module (checked: Type "Runtime" in MetaHumanCharacter.uplugin, so it
+			// packages). Needed so AChangelingCharacterBase can implement
+			// IMetaHumanCharacterActorInterface -- the MetaHuman assembly pipeline will only
+			// generate a Blueprint on top of a class that implements it.
+			"MetaHumanCharacterPalette",
+			// UGroomComponent, so AChangelingNPC can list a MetaHuman's grooms with its
+			// LOD sync. The HairStrands plugin is already enabled -- MetaHumanCharacter
+			// depends on it -- so this adds a module reference, not a plugin.
+			"HairStrandsCore",
 			"SunPosition",
 			"Niagara",
 			"GameplayAbilities",
@@ -29,12 +40,28 @@ public class CHANGELING : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
+		// Head/body composition needs MetaHumanCharacterEditor, whose module Type is
+		// "Editor" -- linking it unconditionally would break a packaged build. Everything
+		// that uses it is inside #if WITH_EDITOR, and a shipped game has no business
+		// conforming a face to a body anyway.
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[] {
+				"MetaHumanCharacter",
+				"MetaHumanCharacterEditor",
+				"UnrealEd",
+				"AssetTools",
+			});
+		}
+
 		PublicIncludePaths.AddRange(new string[] {
 			"CHANGELING",
+			"CHANGELING/AI",
 			"CHANGELING/Audio",
 			"CHANGELING/Water",
 			"CHANGELING/Environment",
 			"CHANGELING/GAS",
+			"CHANGELING/Items",
 			"CHANGELING/Variant_Platforming",
 			"CHANGELING/Variant_Platforming/Animation",
 			"CHANGELING/Variant_Combat",

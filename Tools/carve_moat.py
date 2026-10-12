@@ -3,7 +3,7 @@ Centered on map center (hill peak). Flat constant-Z floor so a flat lake sits
 flush all the way around; banks smoothly blend back to the hill."""
 import os, numpy as np
 from PIL import Image
-T = r"G:\personal_projects\CHANGELING\Tools"
+T = os.path.dirname(os.path.abspath(__file__))
 def load(n): return np.array(Image.open(os.path.join(T, n))).astype(np.float64)
 def save16(a, n): Image.fromarray(np.clip(a,0,65535).astype(np.uint16)).save(os.path.join(T, n))
 

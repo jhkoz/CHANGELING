@@ -23,6 +23,7 @@
 #include "GA_Cantrip.h"
 #include "GA_SustainedCantrip.generated.h"
 
+class UAnimMontage;
 class UNiagaraComponent;
 class UNiagaraSystem;
 class UPointLightComponent;
@@ -66,6 +67,32 @@ public:
 	/** End this one early. Reports as doused rather than expired. */
 	UFUNCTION(BlueprintCallable, Category = "Cantrip|Sustained")
 	virtual void CancelSustain();
+
+	/**
+	 * Whether pressing the key again puts the working out.
+	 *
+	 * On by default, because a working she chose to hold open is one she should be able
+	 * to let go of, and the key that lit it is the only place a player will look. Turn it
+	 * off for anything that should have to run its course -- a working that costs her
+	 * something to stop, or one whose ending is the point.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained")
+	bool bDouseOnSecondPress = true;
+
+	/**
+	 * A second press while the working is held open douses it.
+	 *
+	 * Here rather than in the hotbar, so it costs nothing at the input end: the key, the
+	 * mouse click on the pane, and a buffered retry all arrive through the same call, and
+	 * none of them has to know a sustained cantrip is different from any other.
+	 *
+	 * Guarded on bSustaining specifically, not on being active. During the wind-up she is
+	 * holding the key DOWN and the roll has not happened yet -- treating that as a toggle
+	 * would let a stray press cancel the cast she is still paying for.
+	 */
+	virtual void InputPressed(const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		const FGameplayAbilityActivationInfo ActivationInfo) override;
 
 	/** True while the working is held open. */
 	UFUNCTION(BlueprintPure, Category = "Cantrip|Sustained")
@@ -122,6 +149,56 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained",
 		meta = (ClampMin = "0.01"))
 	float EffectScale = 1.0f;
+
+	/**
+	 * Added to EffectScale for every success past the first.
+	 *
+	 * The same argument as the light's radius: a good roll should be visible in the
+	 * thing itself, not only in a number. A five-success Illuminate is a torch; a
+	 * one-success Illuminate is a candle. Zero keeps every casting the same size.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained",
+		meta = (ClampMin = "0.0"))
+	float EffectScalePerSuccess = 0.25f;
+
+	// ── Intensity ───────────────────────────────────────────────────────────
+	//
+	// Separate from EffectScale, because scale is how BIG the working is and intensity is
+	// how HARD it is running. A torch twice the size is a bigger torch; a torch twice the
+	// intensity is the same size and fiercer. A Niagara system usually wants both, bound
+	// to different things -- scale to the component, intensity to spawn rate and emission.
+
+	/**
+	 * Niagara user parameter the intensity is written to.
+	 *
+	 * Cleared to None if a system has no such parameter, so nothing is written into a
+	 * name that does not exist.
+	 */
+	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Cantrip|Sustained")
+	FName IntensityParameter = TEXT("Intensity");
+
+	/** What the Niagara receives at a bare success. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained",
+		meta = (ClampMin = "0.0"))
+	float IntensityAtOneSuccess = 1.0f;
+
+	/**
+	 * Added per success past the first.
+	 *
+	 * Linear, unlike the light's brightness, which takes the square root. A light scaling
+	 * linearly with its own radius blows out everything nearby; a flame simply being
+	 * bigger and hotter is the point of having rolled well.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained",
+		meta = (ClampMin = "0.0"))
+	float IntensityPerSuccess = 0.25f;
+
+	/** The roll's contribution to intensity, before anything shapes it over time. */
+	float IntensityByRoll() const
+	{
+		return FMath::Max(0.0f, IntensityAtOneSuccess
+			+ (IntensityPerSuccess * FMath::Max(0, SustainSuccesses - 1)));
+	}
 
 	/**
 	 * Rotation relative to the socket.
@@ -310,6 +387,107 @@ protected:
 	void OnSustainEnded(bool bRanOut);
 
 protected:
+	// ── Animation ───────────────────────────────────────────────────────────
+
+	/**
+	 * Montage played while the working is held. Three sections: the raise, a loop, and
+	 * the lowering.
+	 *
+	 * A montage rather than the cantrip's Begin/Loop/End anim set, because that set is
+	 * built for CHANNELLED cantrips -- it keys its loop off Cantrip.State.Channelling,
+	 * which a sustained working never sets, so filling it in would claim her whole body
+	 * for as long as the torch burned and never find its way out again.
+	 *
+	 * Put the montage on an UPPER-BODY slot. The point of a sustained working is that she
+	 * carries it around; a full-body slot plants her feet for the duration.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Animation")
+	TObjectPtr<UAnimMontage> SustainedMontage;
+
+	/** Section to start on. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Animation")
+	FName MontageBeginSection = TEXT("Begin");
+
+	/**
+	 * Section held for as long as the working burns.
+	 *
+	 * Chained at RUNTIME -- Begin to Loop, and Loop back to itself -- rather than in the
+	 * montage asset. Pointing a section at itself is the one link the Montage Sections
+	 * panel makes genuinely awkward, and an asset whose chain has to be exactly right in
+	 * a UI nobody visits twice is an asset that will silently lose the link the next time
+	 * somebody presses Create Default.
+	 *
+	 * Doing it here means the montage only needs three markers in the right places. The
+	 * chain the asset happens to carry is overwritten either way.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Animation")
+	FName MontageLoopSection = TEXT("Loop");
+
+	/**
+	 * Hold the loop section as a still pose instead of playing it round.
+	 *
+	 * A montage section loops by hard-jumping from its end back to its start, with no
+	 * blend. That is fine for a clip authored to cycle, and visibly jitters for a slice
+	 * taken out of a one-shot gesture: the two ends do not match, so every lap pops.
+	 *
+	 * Freezing sidesteps it entirely. The arm stops dead where the animator put it, and
+	 * the motion the eye wants comes from the flame instead -- which is moving anyway,
+	 * and is what the player is actually looking at.
+	 *
+	 * Prefer a real looping clip when there is one. This is for making a cast gesture
+	 * serve as a hold, which is most of them.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Animation")
+	bool bFreezeOnLoopSection = false;
+
+	/**
+	 * Section jumped to when the working ends, so the arm comes down instead of snapping.
+	 *
+	 * Jumped to BEFORE the ability ends, deliberately: once the ability is no longer the
+	 * animating one, the ability system will not take section commands from it. Nothing
+	 * stops the montage on end, so the lowering plays out on its own afterwards.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Cantrip|Sustained|Animation")
+	FName MontageEndSection = TEXT("End");
+
+	/**
+	 * Whether the montage starts as the ability activates rather than when the working
+	 * opens.
+	 *
+	 * False here: an ordinary sustained cantrip has nothing to show during the hold, and
+	 * the raise belongs to the moment it lights. Channelled overrides it, because there
+	 * the hold IS the wind-up -- starting the gesture only after the roll leaves the
+	 * player pressing a key and watching nothing happen.
+	 */
+	virtual bool ShouldStartMontageOnActivate() const { return false; }
+
+	/**
+	 * Whether the effect may appear before the working has opened.
+	 *
+	 * False here: a torch has nothing to show until it is lit. Channelled overrides it,
+	 * because a stream GATHERS -- the flame collects in the hands through the wind-up and
+	 * is already burning when the roll lands, which is the whole reason the intensity is
+	 * driven by an animation curve instead of a timer.
+	 */
+	virtual bool CanSpawnSustainedEffect() const { return bSustaining; }
+
+	/** Play SustainedMontage from its Begin section and chain Begin→Loop→Loop. Safe to
+	 *  call once; BeginSustain skips it if the wind-up already did. */
+	void StartSustainedMontage();
+
+	/** How well this casting rolled, for a subclass scaling its own presentation.
+	 *  Reads 1 until the roll lands, so anything gathered early sizes as a bare success. */
+	int32 GetSustainSuccesses() const { return SustainSuccesses; }
+
+	/**
+	 * SustainedMontage is played at the base's MontagePlayRate.
+	 *
+	 * The base already starts CastMontage when the channel opens, and a sustained
+	 * cantrip does not want that -- it plays its own three-section montage on its own
+	 * schedule, and two montages fighting over one slot is a raised arm that stutters.
+	 */
+	virtual bool ShouldPlayCastMontageOnActivate() const override { return false; }
+
 	/**
 	 * Put the working out and start its fade, WITHOUT ending the ability.
 	 *
@@ -320,9 +498,21 @@ protected:
 
 private:
 	void BeginSustain(int32 Successes);
+
+	/** Everything BeginSustain does after the montage: the effect, the light, the
+	 *  duration timer. Split out only so the montage can start earlier. */
+	void FinishBeginSustain(int32 Successes);
+
+	/** Whether StartSustainedMontage has already run for this casting, so the wind-up
+	 *  and the working opening cannot both play the raise. */
+	bool bSustainedMontageStarted = false;
 	void HandleExpired();
 	float DurationForSuccesses(int32 Successes) const;
 	void SpawnSustainedLight();
+
+	/** Size the effect and the light from SustainSuccesses. Idempotent, and re-run once
+	 *  the roll lands so a flame gathered before it is known does not stay at baseline. */
+	void ApplySuccessScaling();
 	void UpdateLightFlicker();
 	void UpdateHandSpan();
 
@@ -332,6 +522,10 @@ private:
 	FActiveGameplayEffectHandle SustainedEffectHandle;
 	FTimerHandle DurationTimer;
 	FTimerHandle SpawnDelayTimer;
+	FTimerHandle FreezeTimer;
+
+	/** Pause the montage once the raise has played out. */
+	void FreezeSustainedMontage();
 	FTimerHandle FlickerTimer;
 	FTimerHandle HandSpanTimer;
 
@@ -344,4 +538,5 @@ private:
 	float LightBaseIntensity = 0.0f;
 
 	bool bSustaining = false;
+
 };

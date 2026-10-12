@@ -49,3 +49,44 @@ __pycache__/
 
 # Config backups made while editing
 *.bak-*
+
+# Garment pipeline intermediates. All regenerable: the FBX from the outfit
+# .blend via export_outfit.py, the shots from the editor via shot_actor.py.
+# 41MB of binaries that change on every rebuild otherwise.
+/Tools/Export/Garments/
+/Tools/Export/Shots/
+/Tools/Export/*.txt
+/Tools/Blender/Work/
+
+# ── More third-party packs imported straight into Content (re-downloadable; kept local) ──
+/Content/8WayFlyAnimation/
+/Content/AdvancedPortalsSystemVFX/
+/Content/CR/
+/Content/CasualSet01/
+/Content/CombatMagicAnims/
+/Content/DynamicFalling/
+/Content/FaunWarrior/
+/Content/FreeAnimationsPack/
+/Content/GanzSe_Accessories/
+/Content/GemstoneShaders/
+/Content/Joseon_Royal_Wear/
+/Content/Man/
+/Content/Military/
+/Content/Modern_woman/
+/Content/Paragon*/
+/Content/Realistic_Starter_VFX_Pack_Vol2/
+/Content/STYLIZEDFantasyArmory/
+/Content/Stone_Pack/
+/Content/Stylized_Cloth_Casual_01_for_Kvinsi/
+/Content/Synty/
+/Content/WhooshSFXPackLite/
+/Content/__ExternalActors__/8WayFlyAnimation/
+/Content/__ExternalActors__/STYLIZEDFantasyArmory/
+/Content/__ExternalActors__/Synty/
+/Content/__ExternalObjects__/8WayFlyAnimation/
+/Content/__ExternalObjects__/Joseon_Royal_Wear/
+/Content/__ExternalObjects__/STYLIZEDFantasyArmory/
+/Content/__ExternalObjects__/Synty/
+
+# ── Editor experiments ──
+/Content/_Scratch/

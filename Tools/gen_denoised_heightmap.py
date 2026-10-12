@@ -4,7 +4,7 @@ rivers/pools so water stays aligned).  Landscape Z-scale=100, actorZ=0 ->
 16-bit value V = 32768 + Z*1.28 ; worldZ = (V-32768)/128*100."""
 import os, json, numpy as np
 from PIL import Image
-T=r"G:\personal_projects\CHANGELING\Tools"
+T = os.path.dirname(os.path.abspath(__file__))
 d=json.load(open(os.path.join(T,"heightgrid.json")))
 Z=np.array(d["z"],np.float32); G=d["G"]
 

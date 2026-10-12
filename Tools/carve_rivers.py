@@ -3,7 +3,7 @@ hill+moat build. Width varies 2500..3500 along each river; beds are
 monotonically descending (running-min of terrain-depth) so they can never float."""
 import os, numpy as np
 from PIL import Image
-T = r"G:\personal_projects\CHANGELING\Tools"
+T = os.path.dirname(os.path.abspath(__file__))
 def load(n): return np.array(Image.open(os.path.join(T, n))).astype(np.float64)
 def save16(a, n): Image.fromarray(np.clip(a,0,65535).astype(np.uint16)).save(os.path.join(T, n))
 ZS = 24.0/128.0
